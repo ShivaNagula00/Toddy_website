@@ -247,6 +247,9 @@
         </div>
     </main>
 
+    <!-- Load Firebase -->
+    <script src="js/firebase.js" type="module"></script>
+
     <script>
         // Authentication check
         function checkOwnerAuth() {
@@ -274,30 +277,45 @@
             // Will redirect to login if not authenticated
         }
 
-        // Load and display orders
-        function loadOrders() {
-            const allOrders = JSON.parse(localStorage.getItem('toddyOrders') || '[]');
-            
-            // CRITICAL: Only show orders with successful payments
-            const successfulOrders = allOrders.filter(order => 
-                order.payment_status === 'SUCCESS' || 
-                (!order.payment_status && order.status) // Legacy orders without payment_status
-            );
-            
-            const statusFilter = document.getElementById('statusFilter').value;
-            const typeFilter = document.getElementById('typeFilter').value;
-            
-            // Filter orders
-            let filteredOrders = successfulOrders;
-            if (statusFilter !== 'all') {
-                filteredOrders = filteredOrders.filter(order => order.status === statusFilter);
+        // Load and display orders from Firestore
+        async function loadOrders() {
+            try {
+                const result = await window.firestore.getAllOrders();
+                
+                if (!result.success) {
+                    console.error('Failed to load orders:', result.error);
+                    displayOrders([]);
+                    updateStats([]);
+                    return;
+                }
+                
+                const allOrders = result.orders;
+                
+                // CRITICAL: Only show orders with successful payments
+                const successfulOrders = allOrders.filter(order => 
+                    order.paymentStatus === 'SUCCESS' || 
+                    (!order.paymentStatus && order.status) // Legacy orders without paymentStatus
+                );
+                
+                const statusFilter = document.getElementById('statusFilter').value;
+                const typeFilter = document.getElementById('typeFilter').value;
+                
+                // Filter orders
+                let filteredOrders = successfulOrders;
+                if (statusFilter !== 'all') {
+                    filteredOrders = filteredOrders.filter(order => order.status === statusFilter);
+                }
+                if (typeFilter !== 'all') {
+                    filteredOrders = filteredOrders.filter(order => order.deliveryType === typeFilter);
+                }
+                
+                displayOrders(filteredOrders);
+                updateStats(successfulOrders); // Only count successful orders in stats
+            } catch (error) {
+                console.error('Error loading orders:', error);
+                displayOrders([]);
+                updateStats([]);
             }
-            if (typeFilter !== 'all') {
-                filteredOrders = filteredOrders.filter(order => order.deliveryType === typeFilter);
-            }
-            
-            displayOrders(filteredOrders);
-            updateStats(successfulOrders); // Only count successful orders in stats
         }
 
         function displayOrders(orders) {
@@ -313,21 +331,30 @@
                 return;
             }
 
-            container.innerHTML = orders.map(order => `
+            container.innerHTML = orders.map(order => {
+                // Handle both new Firestore format and legacy localStorage format
+                const customer = order.customer;
+                const mobile = order.mobile;
+                const orderType = order.items ? order.items[0].type : order.type;
+                const quantity = order.items ? order.items[0].quantity : order.litres;
+                const total = order.totalAmount ? `Total: ₹${order.totalAmount}` : order.total;
+                const timestamp = order.createdAt ? new Date(order.createdAt.seconds * 1000).toLocaleString() : order.timestamp;
+                
+                return `
                 <div class="order-card">
                     <div class="order-header">
-                        <div class="order-time">${order.timestamp}</div>
+                        <div class="order-time">${timestamp}</div>
                         <div class="order-status status-${order.status || 'new'}">${(order.status || 'new').toUpperCase()}</div>
                     </div>
                     
                     <div class="customer-info">
-                        <div><strong>👤 Customer:</strong> ${order.customer}</div>
-                        <div><strong>📱 Mobile:</strong> <a href="tel:${order.mobile}">${order.mobile}</a></div>
+                        <div><strong>👤 Customer:</strong> ${customer}</div>
+                        <div><strong>📱 Mobile:</strong> <a href="tel:${mobile}">${mobile}</a></div>
                     </div>
                     
                     <div class="order-details">
-                        <div><strong>🥥 Product:</strong> ${order.type.toUpperCase()} - ${order.litres}L</div>
-                        <div><strong>💰 ${order.total}</strong></div>
+                        <div><strong>🥥 Product:</strong> ${orderType.toUpperCase()} - ${quantity}L</div>
+                        <div><strong>💰 ${total}</strong></div>
                         <div><strong>📦 Type:</strong> ${order.deliveryType === 'delivery' ? '🚚 Home Delivery' : '🏪 Self Pickup'}</div>
                         ${order.deliveryType === 'delivery' ? `
                             <div><strong>📍 Address:</strong> ${order.address}</div>
@@ -339,21 +366,24 @@
                         ${order.deliveryType === 'delivery' && order.coordinates ? `
                             <a href="${order.mapsLink}" target="_blank" class="btn btn-primary">🗺️ Get Directions</a>
                         ` : ''}
-                        <a href="tel:${order.mobile}" class="btn btn-success">📞 Call Customer</a>
+                        <a href="tel:${mobile}" class="btn btn-success">📞 Call Customer</a>
                         <a href="${generateWhatsAppLink(order)}" target="_blank" class="btn btn-warning">💬 WhatsApp</a>
-                        <button onclick="markAsDelivered('${order.timestamp}')" class="btn btn-success">✅ Mark Delivered</button>
-                        <button onclick="deleteOrder('${order.timestamp}')" class="btn btn-danger">🗑️ Delete</button>
+                        <button onclick="markAsDelivered('${order.id}')" class="btn btn-success">✅ Mark Delivered</button>
+                        <button onclick="deleteOrder('${order.id}')" class="btn btn-danger">🗑️ Delete</button>
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
         }
 
         function updateStats(orders) {
             const today = new Date().toDateString();
-            const todayOrders = orders.filter(order => new Date(order.timestamp).toDateString() === today);
+            const todayOrders = orders.filter(order => {
+                const orderDate = order.createdAt ? new Date(order.createdAt.seconds * 1000) : new Date(order.timestamp);
+                return orderDate.toDateString() === today;
+            });
             const pendingDeliveries = orders.filter(order => order.deliveryType === 'delivery' && order.status !== 'delivered');
             const totalRevenue = orders.reduce((sum, order) => {
-                const amount = parseInt(order.total.replace(/\D/g, ''));
+                const amount = order.totalAmount || parseInt((order.total || '0').replace(/\D/g, ''));
                 return sum + amount;
             }, 0);
 
@@ -443,10 +473,16 @@
         }
 
         function generateWhatsAppLink(order) {
-            let message = `Hello ${order.customer}! 🥥\n\n`;
+            const customer = order.customer;
+            const mobile = order.mobile;
+            const orderType = order.items ? order.items[0].type : order.type;
+            const quantity = order.items ? order.items[0].quantity : order.litres;
+            const total = order.totalAmount ? `₹${order.totalAmount}` : order.total;
+            
+            let message = `Hello ${customer}! 🥥\n\n`;
             message += `Your Toddy order details:\n`;
-            message += `• Product: ${order.type.toUpperCase()} - ${order.litres}L\n`;
-            message += `• ${order.total}\n`;
+            message += `• Product: ${orderType.toUpperCase()} - ${quantity}L\n`;
+            message += `• ${total}\n`;
             message += `• Type: ${order.deliveryType === 'delivery' ? 'Home Delivery' : 'Self Pickup'}\n\n`;
             
             if (order.deliveryType === 'delivery') {
@@ -457,29 +493,43 @@
             
             message += `Thank you for your order! 🙏`;
             
-            return `https://wa.me/${order.mobile}?text=${encodeURIComponent(message)}`;
+            return `https://wa.me/${mobile}?text=${encodeURIComponent(message)}`;
         }
 
-        function markAsDelivered(timestamp) {
-            const orders = JSON.parse(localStorage.getItem('toddyOrders') || '[]');
-            const orderIndex = orders.findIndex(order => order.timestamp === timestamp);
-            
-            if (orderIndex !== -1) {
-                orders[orderIndex].status = 'delivered';
-                orders[orderIndex].deliveredAt = new Date().toLocaleString();
-                localStorage.setItem('toddyOrders', JSON.stringify(orders));
-                loadOrders();
-                alert('Order marked as delivered! ✅');
+        async function markAsDelivered(orderId) {
+            try {
+                const result = await window.firestore.updateOrder(orderId, { status: 'delivered', deliveredAt: new Date().toISOString() });
+                
+                if (result.success) {
+                    loadOrders();
+                    alert('Order marked as delivered! ✅');
+                } else {
+                    alert('Failed to update order status. Please try again.');
+                }
+            } catch (error) {
+                console.error('Error marking order as delivered:', error);
+                alert('Failed to update order status. Please try again.');
             }
         }
 
-        function deleteOrder(timestamp) {
+        function deleteOrder(orderId) {
             if (confirm('Are you sure you want to delete this order?')) {
-                const orders = JSON.parse(localStorage.getItem('toddyOrders') || '[]');
-                const filteredOrders = orders.filter(order => order.timestamp !== timestamp);
-                localStorage.setItem('toddyOrders', JSON.stringify(filteredOrders));
-                loadOrders();
-                alert('Order deleted successfully! 🗑️');
+                // Note: Firestore doesn't have a delete function in our helper, 
+                // so we'll mark it as deleted instead
+                window.firestore.updateOrder(orderId, { 
+                    status: 'deleted', 
+                    deletedAt: new Date().toISOString() 
+                }).then(result => {
+                    if (result.success) {
+                        loadOrders();
+                        alert('Order deleted successfully! 🗑️');
+                    } else {
+                        alert('Failed to delete order. Please try again.');
+                    }
+                }).catch(error => {
+                    console.error('Error deleting order:', error);
+                    alert('Failed to delete order. Please try again.');
+                });
             }
         }
 
@@ -490,9 +540,9 @@
 
         function clearAllOrders() {
             if (confirm('Are you sure you want to delete ALL orders? This cannot be undone!')) {
-                localStorage.removeItem('toddyOrders');
-                loadOrders();
-                alert('All orders cleared! 🗑️');
+                // This is a dangerous operation - we'll just reload to show current orders
+                // In a real implementation, you'd want to add a proper bulk delete function
+                alert('Bulk delete not implemented for safety. Please delete orders individually.');
             }
         }
 
