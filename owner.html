@@ -187,6 +187,7 @@
                 <button onclick="clearAllOrders()" class="btn btn-danger">🗑️ Clear All</button>
                 <a href="orders-table.html" class="btn btn-warning">📊 Table View</a>
                 <button onclick="showInventoryManager()" class="btn" style="background:#17a2b8;">📦 Manage Stock</button>
+                <button onclick="showPricingManager()" class="btn" style="background:#28a745;">💰 Manage Prices</button>
                 <button onclick="logout()" class="btn" style="background:#dc3545;">🚪 Logout</button>
             </div>
 
@@ -209,6 +210,29 @@
                     <div style="text-align:center;margin-top:20px;">
                         <button onclick="updateInventoryLevels()" class="btn btn-success">✓ Update Stock</button>
                         <button onclick="hideInventoryManager()" class="btn" style="background:#6c757d;margin-left:10px;">✕ Cancel</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pricing Manager Modal -->
+            <div id="pricingModal" class="hidden" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;">
+                <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:30px;border-radius:8px;width:90%;max-width:500px;">
+                    <h3>💰 Manage Prices</h3>
+                    <div style="margin:20px 0;">
+                        <label>Eetha Price (₹/Litre):</label>
+                        <input type="number" id="eethaPrice" min="1" style="width:100%;padding:8px;margin:5px 0;">
+                    </div>
+                    <div style="margin:20px 0;">
+                        <label>Thati Price (₹/Litre):</label>
+                        <input type="number" id="thatiPrice" min="1" style="width:100%;padding:8px;margin:5px 0;">
+                    </div>
+                    <div style="margin:20px 0;">
+                        <label>Neera Price (₹/Litre):</label>
+                        <input type="number" id="neeraPrice" min="1" style="width:100%;padding:8px;margin:5px 0;">
+                    </div>
+                    <div style="text-align:center;margin-top:20px;">
+                        <button onclick="updatePricingLevels()" class="btn btn-success">✓ Update Prices</button>
+                        <button onclick="hidePricingManager()" class="btn" style="background:#6c757d;margin-left:10px;">✕ Cancel</button>
                     </div>
                 </div>
             </div>
@@ -360,6 +384,36 @@
             localStorage.setItem('toddyInventory', JSON.stringify(newInventory));
             hideInventoryManager();
             alert('Inventory updated successfully! 📦');
+        }
+
+        // ===== PRICING MANAGEMENT =====
+        function getPrices() {
+            const defaultPrices = {eetha: 60, thati: 75, neera: 90};
+            return JSON.parse(localStorage.getItem('toddyPrices') || JSON.stringify(defaultPrices));
+        }
+
+        function showPricingManager() {
+            const prices = getPrices();
+            document.getElementById('eethaPrice').value = prices.eetha;
+            document.getElementById('thatiPrice').value = prices.thati;
+            document.getElementById('neeraPrice').value = prices.neera;
+            document.getElementById('pricingModal').classList.remove('hidden');
+        }
+
+        function hidePricingManager() {
+            document.getElementById('pricingModal').classList.add('hidden');
+        }
+
+        function updatePricingLevels() {
+            const newPrices = {
+                eetha: parseInt(document.getElementById('eethaPrice').value) || 60,
+                thati: parseInt(document.getElementById('thatiPrice').value) || 75,
+                neera: parseInt(document.getElementById('neeraPrice').value) || 90
+            };
+            
+            localStorage.setItem('toddyPrices', JSON.stringify(newPrices));
+            hidePricingManager();
+            alert('Prices updated successfully! 💰\n\nNew prices will be reflected on the order page.');
         }
 
         function calculateDistanceFromCoords(coordinates) {

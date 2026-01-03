@@ -1,5 +1,13 @@
 // ===== CONFIGURATION =====
-const prices = {eetha: 60, thati: 75, neera: 90};
+function getPrices() {
+    const defaultPrices = {eetha: 60, thati: 75, neera: 90};
+    return JSON.parse(localStorage.getItem('toddyPrices') || JSON.stringify(defaultPrices));
+}
+
+function updatePrices(newPrices) {
+    localStorage.setItem('toddyPrices', JSON.stringify(newPrices));
+}
+
 let deliveryCharge = 0;
 
 // ===== INVENTORY MANAGEMENT =====
@@ -427,9 +435,12 @@ function calculateDeliveryCharge() {
 function updateAvailabilityAndCalculate() {
     const type = toddyType.value;
     const inventory = getInventory();
+    const prices = getPrices();
     const available = inventory[type];
+    const currentPrice = prices[type];
     
     document.getElementById('availabilityInfo').textContent = `Available: ${available}L`;
+    document.getElementById('priceInfo').textContent = `Price: ₹${currentPrice}/L`;
     
     // Update max attribute for quantity input
     const litresInput = document.getElementById('litres');
@@ -463,6 +474,7 @@ function validateQuantityAndCalculate() {
 function calculateTotal() {
     const type = toddyType.value;
     const litres = +document.getElementById('litres').value;
+    const prices = getPrices(); // Get current prices
     
     if (litres < 2) {
         document.getElementById('priceDetails').innerText = 'Total: ₹0';
