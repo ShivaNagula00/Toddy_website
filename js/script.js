@@ -1,29 +1,64 @@
 // ===== CONFIGURATION =====
-function getPrices() {
+async function getPrices() {
+    try {
+        const result = await window.firestore.getShopSettings();
+        if (result.success && result.settings && result.settings.prices) {
+            return result.settings.prices;
+        }
+    } catch (error) {
+        console.log('Using default prices - Firestore not available');
+    }
+    
+    // Fallback to default prices
     const defaultPrices = {eetha: 60, thati: 75, neera: 90};
-    return JSON.parse(localStorage.getItem('toddyPrices') || JSON.stringify(defaultPrices));
+    return defaultPrices;
 }
 
-function updatePrices(newPrices) {
-    localStorage.setItem('toddyPrices', JSON.stringify(newPrices));
+async function updatePrices(newPrices) {
+    try {
+        const result = await window.firestore.updateShopSettings({ prices: newPrices });
+        if (result.success) {
+            console.log('Prices updated in Firestore');
+        }
+    } catch (error) {
+        console.error('Failed to update prices in Firestore:', error);
+    }
 }
 
 let deliveryCharge = 0;
 
 // ===== INVENTORY MANAGEMENT =====
-function getInventory() {
+async function getInventory() {
+    try {
+        const result = await window.firestore.getShopSettings();
+        if (result.success && result.settings && result.settings.inventory) {
+            return result.settings.inventory;
+        }
+    } catch (error) {
+        console.log('Using default inventory - Firestore not available');
+    }
+    
+    // Fallback to default inventory
     const defaultInventory = {eetha: 50, thati: 50, neera: 50};
-    return JSON.parse(localStorage.getItem('toddyInventory') || JSON.stringify(defaultInventory));
+    return defaultInventory;
 }
 
-function updateInventory(type, quantity) {
-    const inventory = getInventory();
-    inventory[type] = Math.max(0, inventory[type] - quantity);
-    localStorage.setItem('toddyInventory', JSON.stringify(inventory));
+async function updateInventory(type, quantity) {
+    try {
+        const inventory = await getInventory();
+        inventory[type] = Math.max(0, inventory[type] - quantity);
+        
+        const result = await window.firestore.updateShopSettings({ inventory });
+        if (result.success) {
+            console.log('Inventory updated in Firestore');
+        }
+    } catch (error) {
+        console.error('Failed to update inventory in Firestore:', error);
+    }
 }
 
-function checkAvailability(type, quantity) {
-    const inventory = getInventory();
+async function checkAvailability(type, quantity) {
+    const inventory = await getInventory();
     return inventory[type] >= quantity;
 }
 
@@ -432,10 +467,10 @@ function calculateDeliveryCharge() {
 }
 
 // ===== INVENTORY DISPLAY AND VALIDATION =====
-function updateAvailabilityAndCalculate() {
+async function updateAvailabilityAndCalculate() {
     const type = toddyType.value;
-    const inventory = getInventory();
-    const prices = getPrices();
+    const inventory = await getInventory();
+    const prices = await getPrices();
     const available = inventory[type];
     const currentPrice = prices[type];
     
@@ -447,13 +482,13 @@ function updateAvailabilityAndCalculate() {
     litresInput.max = available;
     
     // Validate current quantity
-    validateQuantityAndCalculate();
+    await validateQuantityAndCalculate();
 }
 
-function validateQuantityAndCalculate() {
+async function validateQuantityAndCalculate() {
     const type = toddyType.value;
     const quantity = parseInt(document.getElementById('litres').value);
-    const inventory = getInventory();
+    const inventory = await getInventory();
     const available = inventory[type];
     const errorDiv = document.getElementById('quantityError');
     
@@ -465,16 +500,16 @@ function validateQuantityAndCalculate() {
         return false;
     } else {
         errorDiv.textContent = '';
-        calculateTotal();
+        await calculateTotal();
         return true;
     }
 }
 
 // ===== PRICE CALCULATION =====
-function calculateTotal() {
+async function calculateTotal() {
     const type = toddyType.value;
     const litres = +document.getElementById('litres').value;
-    const prices = getPrices(); // Get current prices
+    const prices = await getPrices(); // Get current prices from Firestore
     
     if (litres < 2) {
         document.getElementById('priceDetails').innerText = 'Total: ₹0';
@@ -649,9 +684,6 @@ async function payNow() {
     const confirmMsg = `You will be redirected to pay ₹${totalAmount} via UPI.\n\nClick OK to proceed with payment.`;
     
     if (confirm(confirmMsg)) {
-        // Store order ID for payment callbacks
-        sessionStorage.setItem('pendingOrderId', pendingOrderId);
-        
         // Handle iOS vs Android differently
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
         
@@ -717,11 +749,6 @@ async function createPendingOrder() {
 // ===== MONITOR PAYMENT STATUS =====
 function monitorPaymentStatus(orderId) {
     let paymentCompleted = false;
-    let startTime = Date.now();
-    
-    // Set payment as PENDING initially
-    sessionStorage.setItem('paymentStatus', 'PENDING');
-    sessionStorage.setItem('orderStatus', 'PENDING');
     
     const handleVisibilityChange = () => {
         if (!document.hidden && !paymentCompleted) {
@@ -745,7 +772,7 @@ function monitorPaymentStatus(orderId) {
     
     // Auto-fail after 5 minutes of inactivity
     const autoFailTimer = setTimeout(() => {
-        if (!paymentCompleted && sessionStorage.getItem('paymentStatus') === 'PENDING') {
+        if (!paymentCompleted) {
             console.log('Auto-failing payment due to timeout');
             handlePaymentFailure(orderId);
         }
@@ -760,8 +787,6 @@ function monitorPaymentStatus(orderId) {
         clearTimeout(autoFailTimer);
         document.removeEventListener('visibilitychange', handleVisibilityChange);
         window.removeEventListener('focus', handleFocus);
-        sessionStorage.removeItem('paymentStatus');
-        sessionStorage.removeItem('orderStatus');
     };
 }
 
@@ -807,9 +832,6 @@ async function handlePaymentSuccess(orderId) {
         const selectedQuantity = parseInt(document.getElementById('litres').value);
         updateInventory(selectedType, selectedQuantity);
         
-        // Clear pending order ID
-        sessionStorage.removeItem('pendingOrderId');
-        
         // Show success message
         alert('Order Successful! We will get back to you shortly.');
         
@@ -839,9 +861,6 @@ async function handlePaymentFailure(orderId) {
     } else {
         console.error('Failed to update order status:', result.error);
     }
-    
-    // Clear pending order ID
-    sessionStorage.removeItem('pendingOrderId');
     
     // Show error message
     alert('Payment failed or cancelled. Please try again.');

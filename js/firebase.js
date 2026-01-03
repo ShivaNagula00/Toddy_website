@@ -20,7 +20,9 @@ import {
   query, 
   orderBy, 
   serverTimestamp,
-  onSnapshot 
+  onSnapshot,
+  setDoc,
+  getDoc
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 const app = initializeApp(firebaseConfig);
@@ -94,6 +96,70 @@ const firestore = {
       });
       callback(orders);
     });
+  },
+
+  // Update Shop Settings (Prices & Inventory)
+  async updateShopSettings(settingsData) {
+    try {
+      const settingsRef = doc(db, 'settings', 'shop');
+      await setDoc(settingsRef, {
+        ...settingsData,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating settings:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // Get Shop Settings (Prices & Inventory)
+  async getShopSettings() {
+    try {
+      const settingsRef = doc(db, 'settings', 'shop');
+      const docSnap = await getDoc(settingsRef);
+      
+      if (docSnap.exists()) {
+        return { success: true, settings: docSnap.data() };
+      } else {
+        return { success: true, settings: null };
+      }
+    } catch (error) {
+      console.error('Error fetching settings:', error);
+      return { success: false, error: error.message, settings: null };
+    }
+  },
+
+  // Store Owner Authentication
+  async setOwnerAuth(authData) {
+    try {
+      const authRef = doc(db, 'settings', 'auth');
+      await setDoc(authRef, {
+        ...authData,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      return { success: true };
+    } catch (error) {
+      console.error('Error storing auth:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // Get Owner Authentication
+  async getOwnerAuth() {
+    try {
+      const authRef = doc(db, 'settings', 'auth');
+      const docSnap = await getDoc(authRef);
+      
+      if (docSnap.exists()) {
+        return { success: true, auth: docSnap.data() };
+      } else {
+        return { success: true, auth: null };
+      }
+    } catch (error) {
+      console.error('Error fetching auth:', error);
+      return { success: false, error: error.message, auth: null };
+    }
   }
 };
 

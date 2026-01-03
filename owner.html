@@ -252,23 +252,36 @@
 
     <script>
         // Authentication check
-        function checkOwnerAuth() {
-            const isAuthenticated = localStorage.getItem('ownerAuth') === 'authenticated';
-            const loginTime = parseInt(localStorage.getItem('ownerLoginTime') || '0');
-            const currentTime = Date.now();
-            const sessionDuration = 24 * 60 * 60 * 1000; // 24 hours
-            
-            if (!isAuthenticated || (currentTime - loginTime > sessionDuration)) {
-                window.location.href = 'login.html';
-                return false;
+        async function checkOwnerAuth() {
+            try {
+                const result = await window.firestore.getOwnerAuth();
+                if (result.success && result.auth) {
+                    const loginTime = result.auth.loginTime || 0;
+                    const currentTime = Date.now();
+                    const sessionDuration = 24 * 60 * 60 * 1000; // 24 hours
+                    
+                    if (result.auth.isAuthenticated && (currentTime - loginTime <= sessionDuration)) {
+                        return true;
+                    }
+                }
+            } catch (error) {
+                console.error('Auth check failed:', error);
             }
-            return true;
+            
+            window.location.href = 'login.html';
+            return false;
         }
 
         // Logout function
-        function logout() {
-            localStorage.removeItem('ownerAuth');
-            localStorage.removeItem('ownerLoginTime');
+        async function logout() {
+            try {
+                await window.firestore.setOwnerAuth({ 
+                    isAuthenticated: false, 
+                    loginTime: null 
+                });
+            } catch (error) {
+                console.error('Logout failed:', error);
+            }
             window.location.href = 'login.html';
         }
 
@@ -393,63 +406,87 @@
         }
 
         // ===== INVENTORY MANAGEMENT =====
-        function getInventory() {
-            const defaultInventory = {eetha: 50, thati: 50, neera: 50};
-            return JSON.parse(localStorage.getItem('toddyInventory') || JSON.stringify(defaultInventory));
+        async function getInventory() {
+            try {
+                const result = await window.firestore.getShopSettings();
+                if (result.success && result.settings && result.settings.inventory) {
+                    return result.settings.inventory;
+                }
+            } catch (error) {
+                console.log('Using default inventory');
+            }
+            return {eetha: 50, thati: 50, neera: 50};
         }
 
-        function showInventoryManager() {
-            const inventory = getInventory();
+        async function showInventoryManager() {
+            const inventory = await getInventory();
             document.getElementById('eethaStock').value = inventory.eetha;
             document.getElementById('thatiStock').value = inventory.thati;
             document.getElementById('neeraStock').value = inventory.neera;
             document.getElementById('inventoryModal').classList.remove('hidden');
         }
 
-        function hideInventoryManager() {
-            document.getElementById('inventoryModal').classList.add('hidden');
-        }
-
-        function updateInventoryLevels() {
+        async function updateInventoryLevels() {
             const newInventory = {
                 eetha: parseInt(document.getElementById('eethaStock').value) || 0,
                 thati: parseInt(document.getElementById('thatiStock').value) || 0,
                 neera: parseInt(document.getElementById('neeraStock').value) || 0
             };
             
-            localStorage.setItem('toddyInventory', JSON.stringify(newInventory));
+            const result = await window.firestore.updateShopSettings({ inventory: newInventory });
             hideInventoryManager();
-            alert('Inventory updated successfully! 📦');
+            
+            if (result.success) {
+                alert('Inventory updated successfully! 📦\nChanges will be visible on all devices.');
+            } else {
+                alert('Failed to update inventory. Please try again.');
+            }
         }
 
         // ===== PRICING MANAGEMENT =====
-        function getPrices() {
-            const defaultPrices = {eetha: 60, thati: 75, neera: 90};
-            return JSON.parse(localStorage.getItem('toddyPrices') || JSON.stringify(defaultPrices));
+        async function getPrices() {
+            try {
+                const result = await window.firestore.getShopSettings();
+                if (result.success && result.settings && result.settings.prices) {
+                    return result.settings.prices;
+                }
+            } catch (error) {
+                console.log('Using default prices');
+            }
+            return {eetha: 60, thati: 75, neera: 90};
         }
 
-        function showPricingManager() {
-            const prices = getPrices();
+        async function showPricingManager() {
+            const prices = await getPrices();
             document.getElementById('eethaPrice').value = prices.eetha;
             document.getElementById('thatiPrice').value = prices.thati;
             document.getElementById('neeraPrice').value = prices.neera;
             document.getElementById('pricingModal').classList.remove('hidden');
         }
 
-        function hidePricingManager() {
-            document.getElementById('pricingModal').classList.add('hidden');
-        }
-
-        function updatePricingLevels() {
+        async function updatePricingLevels() {
             const newPrices = {
                 eetha: parseInt(document.getElementById('eethaPrice').value) || 60,
                 thati: parseInt(document.getElementById('thatiPrice').value) || 75,
                 neera: parseInt(document.getElementById('neeraPrice').value) || 90
             };
             
-            localStorage.setItem('toddyPrices', JSON.stringify(newPrices));
+            const result = await window.firestore.updateShopSettings({ prices: newPrices });
             hidePricingManager();
-            alert('Prices updated successfully! 💰\n\nNew prices will be reflected on the order page.');
+            
+            if (result.success) {
+                alert('Prices updated successfully! 💰\n\nNew prices will be reflected on all devices immediately.');
+            } else {
+                alert('Failed to update prices. Please try again.');
+            }
+        }
+
+        function hideInventoryManager() {
+            document.getElementById('inventoryModal').classList.add('hidden');
+        }
+
+        function hidePricingManager() {
+            document.getElementById('pricingModal').classList.add('hidden');
         }
 
         function calculateDistanceFromCoords(coordinates) {
