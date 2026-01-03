@@ -464,7 +464,7 @@ function calculateTotal() {
     const type = toddyType.value;
     const litres = +document.getElementById('litres').value;
     
-    if (litres < 1) {
+    if (litres < 2) {
         document.getElementById('priceDetails').innerText = 'Total: ₹0';
         document.getElementById('paymentTotal').innerText = 'Total: ₹0';
         return;
@@ -537,7 +537,7 @@ function payNow() {
     const selectedQuantity = parseInt(document.getElementById('litres').value);
     
     if (!totalAmount || totalAmount === '0') {
-        alert('Please select quantity (minimum 1 litre)');
+        alert('Please select quantity (minimum 2 litres)');
         return;
     }
     
