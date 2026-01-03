@@ -12,7 +12,6 @@
             padding: 20px;
             text-align: center;
             margin: -10px -10px 20px -10px;
-            position: relative;
         }
         .stats-grid {
             display: grid;
@@ -148,8 +147,6 @@
 </head>
 <body>
     <div class="owner-header">
-        <button onclick="logout()" style="background: #dc3545; color: white; border: none; width: 80px; height: 40px; border-radius: 4px; cursor: pointer; font-size: 13px; position: absolute; left: 15px; top: 50%; transform: translateY(-50%);">Logout</button>
-        <button onclick="refreshOrders()" style="background: #007bff; color: white; border: none; width: 90px; height: 40px; border-radius: 4px; cursor: pointer; font-size: 11px; position: absolute; right: 15px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; justify-content: center; gap: 3px;">🔄 Refresh</button>
         <h1>🏪 Owner Dashboard</h1>
         <p>Manage Toddy Orders & Deliveries</p>
     </div>
@@ -186,10 +183,12 @@
                     <option value="delivery">Delivery Only</option>
                     <option value="pickup">Pickup Only</option>
                 </select>
+                <button onclick="refreshOrders()" class="btn btn-primary">🔄 Refresh</button>
                 <button onclick="clearAllOrders()" class="btn btn-danger">🗑️ Clear All</button>
                 <a href="orders-table.html" class="btn btn-warning">📊 Table View</a>
                 <button onclick="showInventoryManager()" class="btn" style="background:#17a2b8;">📦 Manage Stock</button>
                 <button onclick="showPricingManager()" class="btn" style="background:#28a745;">💰 Manage Prices</button>
+                <button onclick="logout()" class="btn" style="background:#dc3545;">🚪 Logout</button>
             </div>
 
             <!-- Inventory Manager Modal -->
