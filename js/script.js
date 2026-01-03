@@ -559,8 +559,8 @@ function payNow() {
         return;
     }
     
-    // Prepare order details for owner (save before payment)
-    const orderDetails = prepareOrderForOwner();
+    // Create PENDING order (DO NOT mark as successful yet)
+    const pendingOrderId = createPendingOrder();
     
     // Generate UPI payment URL
     const upiUrl = generateUpiUrl(totalAmount, customerName);
@@ -569,18 +569,19 @@ function payNow() {
     const confirmMsg = `You will be redirected to pay ₹${totalAmount} via UPI.\n\nClick OK to proceed with payment.`;
     
     if (confirm(confirmMsg)) {
-        // Redirect to UPI app
+        // Store order ID for payment callbacks
+        sessionStorage.setItem('pendingOrderId', pendingOrderId);
+        
+        // Redirect to UPI app - DO NOT mark as successful
         window.location.href = upiUrl;
         
-        // Redirect to success page after delay
-        setTimeout(() => {
-            window.location.href = 'order-success.html';
-        }, 3000);
+        // Set up payment monitoring
+        monitorPaymentStatus(pendingOrderId);
     }
 }
 
-// ===== PREPARE ORDER DETAILS FOR OWNER =====
-function prepareOrderForOwner() {
+// ===== CREATE PENDING ORDER =====
+function createPendingOrder() {
     const customerName = document.getElementById('customerName').value;
     const mobile = document.getElementById('mobileNumber').value;
     const toddyType = document.getElementById('toddyType').value;
@@ -589,9 +590,11 @@ function prepareOrderForOwner() {
     const address = document.getElementById('address').value;
     const total = document.getElementById('priceDetails').innerText;
     
-    // Create comprehensive order data for owner dashboard
+    const orderId = Date.now().toString();
+    
+    // Create order in PENDING state
     const orderData = {
-        id: Date.now().toString(), // Unique order ID
+        id: orderId,
         timestamp: new Date().toLocaleString(),
         customer: customerName,
         mobile: mobile,
@@ -602,61 +605,147 @@ function prepareOrderForOwner() {
         address: deliveryType === 'delivery' ? address : 'Self Pickup',
         coordinates: (deliveryType === 'delivery' && customerLat && customerLng) ? `${customerLat},${customerLng}` : null,
         mapsLink: (deliveryType === 'delivery' && customerLat && customerLng) ? `https://www.google.com/maps/dir/${shopLat},${shopLng}/${customerLat},${customerLng}` : null,
-        status: 'new', // new, delivered
+        payment_status: 'PENDING', // CRITICAL: Payment not confirmed yet
+        order_status: 'INITIATED', // CRITICAL: Order initiated but not confirmed
         orderDate: new Date().toISOString(),
         deliveryCharge: deliveryCharge,
         distance: (deliveryType === 'delivery' && customerLat && customerLng) ? calculateDistance(shopLat, shopLng, customerLat, customerLng).toFixed(1) : null
     };
     
-    // Save to localStorage for owner access
+    // Save PENDING order (will not appear in owner dashboard until SUCCESS)
     let orders = JSON.parse(localStorage.getItem('toddyOrders') || '[]');
-    orders.unshift(orderData); // Add to beginning for latest first
+    orders.unshift(orderData);
     localStorage.setItem('toddyOrders', JSON.stringify(orders));
     
-    // Update inventory after successful order
-    updateInventory(toddyType, litres);
+    console.log('PENDING order created:', orderData);
+    return orderId;
+}
+
+// ===== MONITOR PAYMENT STATUS =====
+function monitorPaymentStatus(orderId) {
+    // Monitor for page visibility changes (user returns from payment app)
+    let paymentCompleted = false;
     
-    // Create text summary for notifications
-    let orderText = `NEW TODDY ORDER\n\n`;
-    orderText += `Customer: ${customerName}\n`;
-    orderText += `Mobile: ${mobile}\n`;
-    orderText += `Type: ${toddyType.toUpperCase()} - ${litres}L\n`;
-    orderText += `${total}\n\n`;
-    
-    if (deliveryType === 'delivery') {
-        orderText += `DELIVERY ORDER\n`;
-        orderText += `Address: ${address}\n`;
-        
-        if (customerLat && customerLng) {
-            orderText += `Distance: ${orderData.distance} km from shop\n`;
-            orderText += `Delivery Charge: ₹${deliveryCharge}\n\n`;
-            orderText += `Navigation: ${orderData.mapsLink}\n`;
+    const handleVisibilityChange = () => {
+        if (!document.hidden && !paymentCompleted) {
+            // User returned to page - check payment status
+            setTimeout(() => {
+                if (!paymentCompleted) {
+                    handlePaymentReturn(orderId);
+                }
+            }, 1000);
         }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Also monitor for page focus (fallback)
+    const handleFocus = () => {
+        if (!paymentCompleted) {
+            setTimeout(() => {
+                if (!paymentCompleted) {
+                    handlePaymentReturn(orderId);
+                }
+            }, 1000);
+        }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    
+    // Cleanup function
+    window.paymentCompleted = () => {
+        paymentCompleted = true;
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        window.removeEventListener('focus', handleFocus);
+    };
+}
+
+// ===== HANDLE PAYMENT RETURN =====
+function handlePaymentReturn(orderId) {
+    // Since we can't get actual payment status from UPI in frontend-only,
+    // we need to ask user about payment status
+    const paymentStatus = confirm(
+        'Did you complete the payment successfully?\n\n' +
+        '• Click OK if payment was SUCCESSFUL\n' +
+        '• Click Cancel if payment FAILED or was CANCELLED'
+    );
+    
+    if (paymentStatus) {
+        // Payment SUCCESS
+        handlePaymentSuccess(orderId);
     } else {
-        orderText += `PICKUP ORDER\n`;
-        orderText += `Customer will collect from shop\n`;
+        // Payment FAILED or CANCELLED
+        handlePaymentFailure(orderId);
     }
     
-    console.log('Order saved for owner dashboard:', orderData);
-    
-    // Show notification with option to view owner dashboard
-    setTimeout(() => {
-        if (deliveryType === 'delivery' && customerLat && customerLng) {
-            const action = confirm('Order placed successfully! 🎉\n\nWould you like to:\n• OK = Open Navigation\n• Cancel = View Owner Dashboard');
-            if (action) {
-                window.open(orderData.mapsLink, '_blank');
-            } else {
-                window.open('owner.html', '_blank');
-            }
-        } else {
-            if (confirm('Order placed successfully! 🎉\n\nWould you like to view the Owner Dashboard?')) {
-                window.open('owner.html', '_blank');
-            }
-        }
-    }, 1000);
-    
-    return orderText;
+    // Mark payment as completed to stop monitoring
+    if (window.paymentCompleted) {
+        window.paymentCompleted();
+    }
 }
+
+// ===== HANDLE PAYMENT SUCCESS =====
+function handlePaymentSuccess(orderId) {
+    // Update order status to SUCCESS
+    let orders = JSON.parse(localStorage.getItem('toddyOrders') || '[]');
+    const orderIndex = orders.findIndex(order => order.id === orderId);
+    
+    if (orderIndex !== -1) {
+        // Update order status
+        orders[orderIndex].payment_status = 'SUCCESS';
+        orders[orderIndex].order_status = 'CONFIRMED';
+        orders[orderIndex].paymentCompletedAt = new Date().toISOString();
+        orders[orderIndex].status = 'new'; // For owner dashboard compatibility
+        
+        // Update inventory ONLY on successful payment
+        updateInventory(orders[orderIndex].type, parseInt(orders[orderIndex].litres));
+        
+        // Save updated orders
+        localStorage.setItem('toddyOrders', JSON.stringify(orders));
+        
+        // Clear pending order ID
+        sessionStorage.removeItem('pendingOrderId');
+        
+        // Show success message
+        alert('Order Successful! We will get back to you shortly.');
+        
+        // Redirect to success page
+        window.location.href = 'order-success.html';
+        
+        console.log('Payment SUCCESS - Order confirmed:', orders[orderIndex]);
+    }
+}
+
+// ===== HANDLE PAYMENT FAILURE =====
+function handlePaymentFailure(orderId) {
+    // Update order status to FAILED
+    let orders = JSON.parse(localStorage.getItem('toddyOrders') || '[]');
+    const orderIndex = orders.findIndex(order => order.id === orderId);
+    
+    if (orderIndex !== -1) {
+        // Update order status to FAILED
+        orders[orderIndex].payment_status = 'FAILED';
+        orders[orderIndex].order_status = 'CANCELLED';
+        orders[orderIndex].paymentFailedAt = new Date().toISOString();
+        
+        // Save updated orders (will not appear in owner dashboard)
+        localStorage.setItem('toddyOrders', JSON.stringify(orders));
+        
+        console.log('Payment FAILED - Order cancelled:', orders[orderIndex]);
+    }
+    
+    // Clear pending order ID
+    sessionStorage.removeItem('pendingOrderId');
+    
+    // Show error message
+    alert('Payment failed or cancelled. Please try again.');
+    
+    // DO NOT redirect to success page
+    // DO NOT update inventory
+    // Keep user on current page to retry
+}
+
+
 
 // ===== EVENT LISTENERS =====
 document.addEventListener('DOMContentLoaded', function() {
