@@ -10,11 +10,13 @@
 </head>
 <body>
     <header>
-        <h1 data-en="Toddy Milk" data-te="తాటి రసం">Toddy Milk</h1>
-        <div class="lang-toggle">
-            <button onclick="setLang('en')">English</button>
-            <button onclick="setLang('te')">తెలుగు</button>
-            <a href="login.html" style="background:#1b5e20; color:white; padding:8px 12px; text-decoration:none; border-radius:4px; margin-left:10px;">👤 Owner Login</a>
+        <h1 data-en="Toddy Milk (కల్లు)" data-te="తాటి రసం (కల్లు)">Toddy Milk (కల్లు)</h1>
+        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+            <div class="lang-toggle">
+                <a href="#" onclick="setLang('en'); return false;" style="background:#007bff; color:white; padding:8px 12px; text-decoration:none; border-radius:4px; margin-right:5px;">📋 Customer Order</a>
+                <a href="#" onclick="setLang('te'); return false;" style="background:#17a2b8; color:white; padding:8px 12px; text-decoration:none; border-radius:4px;">📋 కస్టమర్ ఆర్డర్</a>
+            </div>
+            <a href="login.html" style="background:#1b5e20; color:white; padding:8px 12px; text-decoration:none; border-radius:4px;">👤 Owner Login</a>
         </div>
     </header>
 
@@ -40,13 +42,17 @@
             </div>
             
             <div class="form-group">
-                <label data-en="Select Type:" data-te="రకం ఎంచుకోండి:">Select Type:</label>
-                <select id="toddyType" onchange="updateAvailabilityAndCalculate()">
-                    <option value="eetha" data-en="Eetha" data-te="ఈత">Eetha</option>
-                    <option value="thati" data-en="Thati" data-te="తాటి">Thati</option>
-                    <option value="neera" data-en="Neera" data-te="నీరా">Neera</option>
-                </select>
-                <div id="availabilityInfo" style="margin-top:5px;font-size:14px;color:#2e7d32;"></div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="flex: 1;">
+                        <label data-en="Select Type:" data-te="రకం ఎంచుకోండి:">Select Type:</label>
+                        <select id="toddyType" onchange="updateAvailabilityAndCalculate()">
+                            <option value="eetha" data-en="Eetha" data-te="ఈత">Eetha</option>
+                            <option value="thati" data-en="Thati" data-te="తాటి">Thati</option>
+                            <option value="neera" data-en="Neera" data-te="నీరా">Neera</option>
+                        </select>
+                    </div>
+                    <div id="availabilityInfo" style="margin-left: 20px; font-size: 18px; color: #2e7d32; font-weight: bold; min-width: 150px; text-align: right;"></div>
+                </div>
                 <div id="priceInfo" style="margin-top:5px;font-size:14px;color:#1565c0;font-weight:bold;"></div>
             </div>
 
