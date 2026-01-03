@@ -540,14 +540,61 @@ function copyUPI() {
     });
 }
 
+// ===== iOS UPI APP HANDLER =====
+function tryIOSUpiApps(upiUrls, index) {
+    if (index >= upiUrls.length) {
+        // If all UPI apps fail, show manual payment option
+        alert('No UPI apps found. Please use the "Copy UPI ID" option above to pay manually.');
+        return;
+    }
+    
+    const currentUrl = upiUrls[index];
+    
+    // Create a temporary iframe to test if the app can handle the URL
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = currentUrl;
+    document.body.appendChild(iframe);
+    
+    // Set a timeout to try the next app if current one doesn't respond
+    setTimeout(() => {
+        document.body.removeChild(iframe);
+        
+        // Check if we're still on the same page (app didn't open)
+        if (document.hasFocus()) {
+            tryIOSUpiApps(upiUrls, index + 1);
+        }
+    }, 1000);
+    
+    // Also try direct window.location as fallback
+    setTimeout(() => {
+        if (document.hasFocus()) {
+            window.location.href = currentUrl;
+        }
+    }, 500);
+}
+
 // ===== GENERATE UPI PAYMENT URL =====
 function generateUpiUrl(amount, customerName) {
     const transactionNote = `Toddy Order - ${customerName}`;
     
-    // UPI URL format: upi://pay?pa=UPI_ID&pn=MERCHANT_NAME&am=AMOUNT&cu=INR&tn=NOTE
-    const upiUrl = `upi://pay?pa=${UPI_ID}&pn=${encodeURIComponent(MERCHANT_NAME)}&am=${amount}&cu=INR&tn=${encodeURIComponent(transactionNote)}`;
+    // Detect iOS
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
     
-    return upiUrl;
+    if (isIOS) {
+        // For iOS, try multiple UPI schemes
+        const upiSchemes = [
+            `gpay://upi/pay?pa=${UPI_ID}&pn=${encodeURIComponent(MERCHANT_NAME)}&am=${amount}&cu=INR&tn=${encodeURIComponent(transactionNote)}`,
+            `phonepe://pay?pa=${UPI_ID}&pn=${encodeURIComponent(MERCHANT_NAME)}&am=${amount}&cu=INR&tn=${encodeURIComponent(transactionNote)}`,
+            `paytmmp://pay?pa=${UPI_ID}&pn=${encodeURIComponent(MERCHANT_NAME)}&am=${amount}&cu=INR&tn=${encodeURIComponent(transactionNote)}`,
+            `upi://pay?pa=${UPI_ID}&pn=${encodeURIComponent(MERCHANT_NAME)}&am=${amount}&cu=INR&tn=${encodeURIComponent(transactionNote)}`
+        ];
+        return upiSchemes;
+    } else {
+        // For Android, use standard UPI intent
+        const upiUrl = `upi://pay?pa=${UPI_ID}&pn=${encodeURIComponent(MERCHANT_NAME)}&am=${amount}&cu=INR&tn=${encodeURIComponent(transactionNote)}`;
+        return upiUrl;
+    }
 }
 
 // ===== UPI PAYMENT PROCESSING =====
@@ -596,7 +643,7 @@ async function payNow() {
     }
     
     // Generate UPI payment URL
-    const upiUrl = generateUpiUrl(totalAmount, customerName);
+    const upiUrls = generateUpiUrl(totalAmount, customerName);
     
     // Show payment confirmation
     const confirmMsg = `You will be redirected to pay ₹${totalAmount} via UPI.\n\nClick OK to proceed with payment.`;
@@ -605,8 +652,16 @@ async function payNow() {
         // Store order ID for payment callbacks
         sessionStorage.setItem('pendingOrderId', pendingOrderId);
         
-        // Redirect to UPI app - DO NOT mark as successful
-        window.location.href = upiUrl;
+        // Handle iOS vs Android differently
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        
+        if (isIOS && Array.isArray(upiUrls)) {
+            // For iOS, try multiple UPI apps
+            tryIOSUpiApps(upiUrls, 0);
+        } else {
+            // For Android, use standard UPI intent
+            window.location.href = upiUrls;
+        }
         
         // Set up payment monitoring
         monitorPaymentStatus(pendingOrderId);
@@ -800,6 +855,12 @@ async function handlePaymentFailure(orderId) {
 
 // ===== EVENT LISTENERS =====
 document.addEventListener('DOMContentLoaded', function() {
+    // Show iOS note if on iPhone/iPad
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    if (isIOS) {
+        document.getElementById('iosNote').style.display = 'block';
+    }
+    
     // Add real-time validation
     document.getElementById('customerName').addEventListener('blur', validateCustomerName);
     document.getElementById('customerName').addEventListener('input', updatePayButtonState);
