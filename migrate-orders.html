@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Migrate Orders to Firestore</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <h1>🔄 Migrate Orders to Firestore</h1>
+    <p>This tool will migrate existing localStorage orders to your Firestore database.</p>
+    
+    <div id="status"></div>
+    
+    <button id="migrateBtn" onclick="migrateOrders()">Start Migration</button>
+    
+    <div id="results"></div>
+
+    <!-- Load Firebase -->
+    <script src="js/firebase.js" type="module"></script>
+
+    <script>
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        function addResult(message, type = 'info') {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML += `<div class="status ${type}">${message}</div>`;
+        }
+
+        async function migrateOrders() {
+            const btn = document.getElementById('migrateBtn');
+            btn.disabled = true;
+            btn.textContent = 'Migrating...';
+            
+            document.getElementById('results').innerHTML = '';
+            
+            try {
+                // Get orders from localStorage
+                const localOrders = JSON.parse(localStorage.getItem('toddyOrders') || '[]');
+                
+                if (localOrders.length === 0) {
+                    showStatus('No orders found in localStorage to migrate.', 'info');
+                    btn.disabled = false;
+                    btn.textContent = 'Start Migration';
+                    return;
+                }
+                
+                showStatus(`Found ${localOrders.length} orders in localStorage. Starting migration...`, 'info');
+                
+                let successCount = 0;
+                let errorCount = 0;
+                
+                for (let i = 0; i < localOrders.length; i++) {
+                    const order = localOrders[i];
+                    
+                    try {
+                        // Convert localStorage format to Firestore format
+                        const firestoreOrder = {
+                            orderId: order.id || Date.now().toString() + '_' + i,
+                            customer: order.customer,
+                            mobile: order.mobile,
+                            items: [{
+                                type: order.type,
+                                quantity: parseInt(order.litres),
+                                price: 0 // Will be calculated based on current prices
+                            }],
+                            totalAmount: parseInt((order.total || '0').replace(/\D/g, '')),
+                            paymentStatus: order.payment_status || 'SUCCESS', // Assume existing orders are successful
+                            orderStatus: order.order_status || 'CONFIRMED',
+                            deliveryType: order.deliveryType,
+                            address: order.address,
+                            coordinates: order.coordinates,
+                            mapsLink: order.mapsLink,
+                            deliveryCharge: order.deliveryCharge || 0,
+                            distance: order.distance,
+                            status: order.status || 'new'
+                        };
+                        
+                        // Save to Firestore
+                        const result = await window.firestore.createOrder(firestoreOrder);
+                        
+                        if (result.success) {
+                            successCount++;
+                            addResult(`✅ Migrated order for ${order.customer}`, 'success');
+                        } else {
+                            errorCount++;
+                            addResult(`❌ Failed to migrate order for ${order.customer}: ${result.error}`, 'error');
+                        }
+                        
+                    } catch (error) {
+                        errorCount++;
+                        addResult(`❌ Error migrating order for ${order.customer}: ${error.message}`, 'error');
+                    }
+                }
+                
+                showStatus(`Migration completed! ✅ ${successCount} successful, ❌ ${errorCount} failed`, 
+                          errorCount > 0 ? 'error' : 'success');
+                
+                if (successCount > 0) {
+                    addResult(`<br><strong>Next Steps:</strong><br>
+                    1. Verify orders appear in your Firestore database<br>
+                    2. Test the owner dashboard to ensure orders load correctly<br>
+                    3. If everything looks good, you can clear localStorage: 
+                    <button onclick="clearLocalStorage()">Clear localStorage</button>`, 'info');
+                }
+                
+            } catch (error) {
+                showStatus(`Migration failed: ${error.message}`, 'error');
+            }
+            
+            btn.disabled = false;
+            btn.textContent = 'Start Migration';
+        }
+        
+        function clearLocalStorage() {
+            if (confirm('Are you sure you want to clear localStorage orders? Make sure Firestore migration was successful first!')) {
+                localStorage.removeItem('toddyOrders');
+                addResult('✅ localStorage orders cleared!', 'success');
+            }
+        }
+        
+        // Check if Firebase is loaded
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                if (!window.firestore) {
+                    showStatus('❌ Firebase not loaded. Make sure you have configured Firebase properly.', 'error');
+                    document.getElementById('migrateBtn').disabled = true;
+                } else {
+                    showStatus('✅ Firebase loaded successfully. Ready to migrate.', 'success');
+                }
+            }, 2000);
+        });
+    </script>
+</body>
+</html>

@@ -522,7 +522,7 @@ function generateUpiUrl(amount, customerName) {
 }
 
 // ===== UPI PAYMENT PROCESSING =====
-function payNow() {
+async function payNow() {
     // Validate all fields
     const isNameValid = validateCustomerName();
     const isMobileValid = validateMobileNumber();
@@ -559,8 +559,12 @@ function payNow() {
         return;
     }
     
-    // Create PENDING order (DO NOT mark as successful yet)
-    const pendingOrderId = createPendingOrder();
+    // Create PENDING order
+    const pendingOrderId = await createPendingOrder();
+    
+    if (!pendingOrderId) {
+        return; // Error already shown in createPendingOrder
+    }
     
     // Generate UPI payment URL
     const upiUrl = generateUpiUrl(totalAmount, customerName);
@@ -581,7 +585,7 @@ function payNow() {
 }
 
 // ===== CREATE PENDING ORDER =====
-function createPendingOrder() {
+async function createPendingOrder() {
     const customerName = document.getElementById('customerName').value;
     const mobile = document.getElementById('mobileNumber').value;
     const toddyType = document.getElementById('toddyType').value;
@@ -592,33 +596,38 @@ function createPendingOrder() {
     
     const orderId = Date.now().toString();
     
-    // Create order in PENDING state
+    // Create order data for Firestore
     const orderData = {
-        id: orderId,
-        timestamp: new Date().toLocaleString(),
+        orderId: orderId,
         customer: customerName,
         mobile: mobile,
-        type: toddyType,
-        litres: litres,
-        total: total,
+        items: [{
+            type: toddyType,
+            quantity: parseInt(litres),
+            price: getPrices()[toddyType]
+        }],
+        totalAmount: parseInt(total.replace(/\D/g, '')),
+        paymentStatus: 'PENDING',
+        orderStatus: 'INITIATED',
         deliveryType: deliveryType,
         address: deliveryType === 'delivery' ? address : 'Self Pickup',
         coordinates: (deliveryType === 'delivery' && customerLat && customerLng) ? `${customerLat},${customerLng}` : null,
         mapsLink: (deliveryType === 'delivery' && customerLat && customerLng) ? `https://www.google.com/maps/dir/${shopLat},${shopLng}/${customerLat},${customerLng}` : null,
-        payment_status: 'PENDING', // CRITICAL: Payment not confirmed yet
-        order_status: 'INITIATED', // CRITICAL: Order initiated but not confirmed
-        orderDate: new Date().toISOString(),
         deliveryCharge: deliveryCharge,
         distance: (deliveryType === 'delivery' && customerLat && customerLng) ? calculateDistance(shopLat, shopLng, customerLat, customerLng).toFixed(1) : null
     };
     
-    // Save PENDING order (will not appear in owner dashboard until SUCCESS)
-    let orders = JSON.parse(localStorage.getItem('toddyOrders') || '[]');
-    orders.unshift(orderData);
-    localStorage.setItem('toddyOrders', JSON.stringify(orders));
+    // Save to Firestore
+    const result = await window.firestore.createOrder(orderData);
     
-    console.log('PENDING order created:', orderData);
-    return orderId;
+    if (result.success) {
+        console.log('PENDING order created in Firestore:', result.orderId);
+        return result.orderId;
+    } else {
+        console.error('Failed to create order:', result.error);
+        alert('Failed to create order. Please try again.');
+        return null;
+    }
 }
 
 // ===== MONITOR PAYMENT STATUS =====
@@ -685,23 +694,22 @@ function handlePaymentReturn(orderId) {
 }
 
 // ===== HANDLE PAYMENT SUCCESS =====
-function handlePaymentSuccess(orderId) {
-    // Update order status to SUCCESS
-    let orders = JSON.parse(localStorage.getItem('toddyOrders') || '[]');
-    const orderIndex = orders.findIndex(order => order.id === orderId);
+async function handlePaymentSuccess(orderId) {
+    // Update order status to SUCCESS in Firestore
+    const updateData = {
+        paymentStatus: 'SUCCESS',
+        orderStatus: 'CONFIRMED',
+        paymentCompletedAt: new Date().toISOString(),
+        status: 'new' // For owner dashboard compatibility
+    };
     
-    if (orderIndex !== -1) {
-        // Update order status
-        orders[orderIndex].payment_status = 'SUCCESS';
-        orders[orderIndex].order_status = 'CONFIRMED';
-        orders[orderIndex].paymentCompletedAt = new Date().toISOString();
-        orders[orderIndex].status = 'new'; // For owner dashboard compatibility
-        
+    const result = await window.firestore.updateOrder(orderId, updateData);
+    
+    if (result.success) {
         // Update inventory ONLY on successful payment
-        updateInventory(orders[orderIndex].type, parseInt(orders[orderIndex].litres));
-        
-        // Save updated orders
-        localStorage.setItem('toddyOrders', JSON.stringify(orders));
+        const selectedType = toddyType.value;
+        const selectedQuantity = parseInt(document.getElementById('litres').value);
+        updateInventory(selectedType, selectedQuantity);
         
         // Clear pending order ID
         sessionStorage.removeItem('pendingOrderId');
@@ -712,26 +720,28 @@ function handlePaymentSuccess(orderId) {
         // Redirect to success page
         window.location.href = 'order-success.html';
         
-        console.log('Payment SUCCESS - Order confirmed:', orders[orderIndex]);
+        console.log('Payment SUCCESS - Order confirmed in Firestore:', orderId);
+    } else {
+        console.error('Failed to update order status:', result.error);
+        alert('Payment successful but failed to update order. Please contact support.');
     }
 }
 
 // ===== HANDLE PAYMENT FAILURE =====
-function handlePaymentFailure(orderId) {
-    // Update order status to FAILED
-    let orders = JSON.parse(localStorage.getItem('toddyOrders') || '[]');
-    const orderIndex = orders.findIndex(order => order.id === orderId);
+async function handlePaymentFailure(orderId) {
+    // Update order status to FAILED in Firestore
+    const updateData = {
+        paymentStatus: 'FAILED',
+        orderStatus: 'CANCELLED',
+        paymentFailedAt: new Date().toISOString()
+    };
     
-    if (orderIndex !== -1) {
-        // Update order status to FAILED
-        orders[orderIndex].payment_status = 'FAILED';
-        orders[orderIndex].order_status = 'CANCELLED';
-        orders[orderIndex].paymentFailedAt = new Date().toISOString();
-        
-        // Save updated orders (will not appear in owner dashboard)
-        localStorage.setItem('toddyOrders', JSON.stringify(orders));
-        
-        console.log('Payment FAILED - Order cancelled:', orders[orderIndex]);
+    const result = await window.firestore.updateOrder(orderId, updateData);
+    
+    if (result.success) {
+        console.log('Payment FAILED - Order cancelled in Firestore:', orderId);
+    } else {
+        console.error('Failed to update order status:', result.error);
     }
     
     // Clear pending order ID
