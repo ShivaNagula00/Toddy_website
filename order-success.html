@@ -23,25 +23,44 @@
     <!-- Content will be loaded by JavaScript based on payment status -->
 </div>
 
+<!-- Load Firebase -->
+<script src="js/firebase.js" type="module"></script>
+
 <script>
 // CRITICAL: Verify payment success before showing success page
-function verifyPaymentSuccess() {
-    // Check if there's a recent successful payment
-    const orders = JSON.parse(localStorage.getItem('toddyOrders') || '[]');
-    const recentSuccessfulOrder = orders.find(order => 
-        order.payment_status === 'SUCCESS' && 
-        order.paymentCompletedAt &&
-        (Date.now() - new Date(order.paymentCompletedAt).getTime()) < 300000 // Within 5 minutes
-    );
-    
-    if (recentSuccessfulOrder) {
-        showSuccessPage(recentSuccessfulOrder);
-    } else {
+async function verifyPaymentSuccess() {
+    try {
+        // Get recent orders from Firestore
+        const result = await window.firestore.getAllOrders();
+        
+        if (!result.success) {
+            showErrorPage();
+            return;
+        }
+        
+        // Check if there's a recent successful payment
+        const recentSuccessfulOrder = result.orders.find(order => 
+            order.paymentStatus === 'SUCCESS' && 
+            order.paymentCompletedAt &&
+            (Date.now() - new Date(order.paymentCompletedAt).getTime()) < 300000 // Within 5 minutes
+        );
+        
+        if (recentSuccessfulOrder) {
+            showSuccessPage(recentSuccessfulOrder);
+        } else {
+            showErrorPage();
+        }
+    } catch (error) {
+        console.error('Error verifying payment:', error);
         showErrorPage();
     }
 }
 
 function showSuccessPage(order) {
+    const orderType = order.items ? order.items[0].type : order.type;
+    const quantity = order.items ? order.items[0].quantity : order.litres;
+    const total = order.totalAmount ? `₹${order.totalAmount}` : order.total;
+    
     document.getElementById('pageContent').innerHTML = `
         <div class="success-card">
             <div class="success-icon">✅</div>
@@ -53,8 +72,8 @@ function showSuccessPage(order) {
             <div class="order-info">
                 <h3>Order Details:</h3>
                 <p><strong>Customer:</strong> ${order.customer}</p>
-                <p><strong>Product:</strong> ${order.type.toUpperCase()} - ${order.litres}L</p>
-                <p><strong>Total:</strong> ${order.total}</p>
+                <p><strong>Product:</strong> ${orderType.toUpperCase()} - ${quantity}L</p>
+                <p><strong>Total:</strong> ${total}</p>
                 <p><strong>Type:</strong> ${order.deliveryType === 'delivery' ? 'Home Delivery' : 'Self Pickup'}</p>
                 
                 <h3>What happens next?</h3>
@@ -84,8 +103,16 @@ function showErrorPage() {
     `;
 }
 
-// Run verification on page load
-document.addEventListener('DOMContentLoaded', verifyPaymentSuccess);
+// Wait for Firebase to load, then verify
+window.addEventListener('load', () => {
+    setTimeout(() => {
+        if (window.firestore) {
+            verifyPaymentSuccess();
+        } else {
+            showErrorPage();
+        }
+    }, 2000);
+});
 </script>
 </body>
 </html>

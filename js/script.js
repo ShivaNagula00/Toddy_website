@@ -511,6 +511,35 @@ function updatePayButtonState() {
     payBtn.style.cursor = isFormValid ? 'pointer' : 'not-allowed';
 }
 
+// ===== UPI COPY FUNCTIONALITY =====
+function copyUPI() {
+    const upi = document.getElementById("upiId").innerText;
+    const copyBtn = document.getElementById("copyBtn");
+    
+    navigator.clipboard.writeText(upi).then(() => {
+        copyBtn.innerHTML = "✓";
+        copyBtn.style.background = "#28a745";
+        setTimeout(() => {
+            copyBtn.innerHTML = "📋";
+            copyBtn.style.background = "#28a745";
+        }, 2000);
+    }).catch(() => {
+        // Fallback for older browsers
+        const textArea = document.createElement("textarea");
+        textArea.value = upi;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        copyBtn.innerHTML = "✓";
+        copyBtn.style.background = "#28a745";
+        setTimeout(() => {
+            copyBtn.innerHTML = "📋";
+            copyBtn.style.background = "#28a745";
+        }, 2000);
+    });
+}
+
 // ===== GENERATE UPI PAYMENT URL =====
 function generateUpiUrl(amount, customerName) {
     const transactionNote = `Toddy Order - ${customerName}`;
@@ -632,12 +661,15 @@ async function createPendingOrder() {
 
 // ===== MONITOR PAYMENT STATUS =====
 function monitorPaymentStatus(orderId) {
-    // Monitor for page visibility changes (user returns from payment app)
     let paymentCompleted = false;
+    let startTime = Date.now();
+    
+    // Set payment as PENDING initially
+    sessionStorage.setItem('paymentStatus', 'PENDING');
+    sessionStorage.setItem('orderStatus', 'PENDING');
     
     const handleVisibilityChange = () => {
         if (!document.hidden && !paymentCompleted) {
-            // User returned to page - check payment status
             setTimeout(() => {
                 if (!paymentCompleted) {
                     handlePaymentReturn(orderId);
@@ -646,9 +678,6 @@ function monitorPaymentStatus(orderId) {
         }
     };
     
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    // Also monitor for page focus (fallback)
     const handleFocus = () => {
         if (!paymentCompleted) {
             setTimeout(() => {
@@ -659,13 +688,25 @@ function monitorPaymentStatus(orderId) {
         }
     };
     
+    // Auto-fail after 5 minutes of inactivity
+    const autoFailTimer = setTimeout(() => {
+        if (!paymentCompleted && sessionStorage.getItem('paymentStatus') === 'PENDING') {
+            console.log('Auto-failing payment due to timeout');
+            handlePaymentFailure(orderId);
+        }
+    }, 5 * 60 * 1000); // 5 minutes
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleFocus);
     
     // Cleanup function
     window.paymentCompleted = () => {
         paymentCompleted = true;
+        clearTimeout(autoFailTimer);
         document.removeEventListener('visibilitychange', handleVisibilityChange);
         window.removeEventListener('focus', handleFocus);
+        sessionStorage.removeItem('paymentStatus');
+        sessionStorage.removeItem('orderStatus');
     };
 }
 

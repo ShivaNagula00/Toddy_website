@@ -293,8 +293,7 @@
                 
                 // CRITICAL: Only show orders with successful payments
                 const successfulOrders = allOrders.filter(order => 
-                    order.paymentStatus === 'SUCCESS' || 
-                    (!order.paymentStatus && order.status) // Legacy orders without paymentStatus
+                    order.paymentStatus === 'SUCCESS'
                 );
                 
                 const statusFilter = document.getElementById('statusFilter').value;

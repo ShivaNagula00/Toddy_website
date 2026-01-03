@@ -101,14 +101,32 @@
                 
                 <div class="payment-summary">
                     <div id="paymentTotal">Total: ₹0</div>
-                    <p class="payment-note" data-en="Pay securely via UPI" data-te="UPI ద్వారా సురక్షితంగా చెల్లించండి">Pay securely via UPI</p>
                 </div>
 
-                <button id="payBtn" onclick="payNow()" class="pay-btn" disabled data-en="Pay Now" data-te="ఇప్పుడే చెల్లించండి">Pay Now</button>
+                <!-- UPI Payment Options -->
+                <div class="upi-payment-box" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                    <p><strong>💳 Pay using UPI</strong></p>
+                    
+                    <!-- Manual UPI ID with Copy -->
+                    <div style="background: white; padding: 10px; border-radius: 4px; margin: 10px 0;">
+                        <p><strong>UPI ID:</strong></p>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span id="upiId" style="font-family: monospace; font-size: 16px; color: #2e7d32;">6302564464@pthdfc</span>
+                            <button type="button" id="copyBtn" onclick="copyUPI()" style="padding: 6px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; width: 50px; height: 30px; display: flex; align-items: center; justify-content: center;">📋</button>
+                        </div>
+                        <small style="color: #666;">Copy this UPI ID and pay using any UPI app (GPay, PhonePe, Paytm, BHIM)</small>
+                    </div>
+                    
+                    <!-- OR Divider -->
+                    <div style="text-align: center; margin: 15px 0; color: #666;">OR</div>
+                    
+                    <!-- Direct UPI Payment -->
+                    <button id="payBtn" onclick="payNow()" class="pay-btn" disabled data-en="Pay with UPI Apps" data-te="UPI యాప్స్ తో చెల్లించండి">Pay with UPI Apps</button>
+                </div>
                 
                 <div class="payment-info">
-                    <p class="upi-info" data-en="• You will be redirected to your UPI app" data-te="• మీరు UPI ఆప్ కి రీడైరెక్ట్ అవుతారు">• You will be redirected to your UPI app</p>
-                    <p class="upi-info" data-en="• Complete payment and return to confirm order" data-te="• చెల్లింపు పూర్తి చేసి ఆర్డర్ కన్ఫర్మ్ చేయండి">• Complete payment and return to confirm order</p>
+                    <p class="upi-info" data-en="• Choose any payment method above" data-te="• పైన ఏదైనా చెల్లింపు పద్ధతిని ఎంచుకోండి">• Choose any payment method above</p>
+                    <p class="upi-info" data-en="• Complete payment and confirm when done" data-te="• చెల్లింపు పూర్తి చేసి కన్ఫర్మ్ చేయండి">• Complete payment and confirm when done</p>
                 </div>
             </div>
         </section>
