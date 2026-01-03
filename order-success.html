@@ -13,30 +13,79 @@
 .order-info{background:#f8f9fa;padding:20px;border-radius:8px;margin:20px 0;text-align:left}
 .back-btn{background:#007bff;color:#fff;padding:12px 30px;text-decoration:none;border-radius:6px;display:inline-block;margin-top:20px;transition:background 0.3s}
 .back-btn:hover{background:#0056b3}
+.error-card{background:#fff;padding:40px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.1);text-align:center;max-width:500px}
+.error-icon{font-size:60px;color:#dc3545;margin-bottom:20px}
+.error-title{color:#dc3545;font-size:28px;margin-bottom:15px}
 </style>
 </head>
 <body>
-<div class="success-container">
-    <div class="success-card">
-        <div class="success-icon">✅</div>
-        <h1 class="success-title">Payment Successful!</h1>
-        <p class="success-message">
-            If payment is successful, your order has been received.
-            We will contact you shortly to confirm delivery details.
-        </p>
-        
-        <div class="order-info">
-            <h3>What happens next?</h3>
-            <ul>
-                <li>You will receive a confirmation call within 30 minutes</li>
-                <li>For delivery orders, our team will coordinate timing</li>
-                <li>For pickup orders, you can collect from our shop</li>
-                <li>Keep your phone handy for our call</li>
-            </ul>
-        </div>
-        
-        <a href="index.html" class="back-btn">Place Another Order</a>
-    </div>
+<div class="success-container" id="pageContent">
+    <!-- Content will be loaded by JavaScript based on payment status -->
 </div>
+
+<script>
+// CRITICAL: Verify payment success before showing success page
+function verifyPaymentSuccess() {
+    // Check if there's a recent successful payment
+    const orders = JSON.parse(localStorage.getItem('toddyOrders') || '[]');
+    const recentSuccessfulOrder = orders.find(order => 
+        order.payment_status === 'SUCCESS' && 
+        order.paymentCompletedAt &&
+        (Date.now() - new Date(order.paymentCompletedAt).getTime()) < 300000 // Within 5 minutes
+    );
+    
+    if (recentSuccessfulOrder) {
+        showSuccessPage(recentSuccessfulOrder);
+    } else {
+        showErrorPage();
+    }
+}
+
+function showSuccessPage(order) {
+    document.getElementById('pageContent').innerHTML = `
+        <div class="success-card">
+            <div class="success-icon">✅</div>
+            <h1 class="success-title">Order Successful!</h1>
+            <p class="success-message">
+                We will get back to you shortly.
+            </p>
+            
+            <div class="order-info">
+                <h3>Order Details:</h3>
+                <p><strong>Customer:</strong> ${order.customer}</p>
+                <p><strong>Product:</strong> ${order.type.toUpperCase()} - ${order.litres}L</p>
+                <p><strong>Total:</strong> ${order.total}</p>
+                <p><strong>Type:</strong> ${order.deliveryType === 'delivery' ? 'Home Delivery' : 'Self Pickup'}</p>
+                
+                <h3>What happens next?</h3>
+                <ul>
+                    <li>You will receive a confirmation call within 30 minutes</li>
+                    <li>For delivery orders, our team will coordinate timing</li>
+                    <li>For pickup orders, you can collect from our shop</li>
+                    <li>Keep your phone handy for our call</li>
+                </ul>
+            </div>
+            
+            <a href="index.html" class="back-btn">Place Another Order</a>
+        </div>
+    `;
+}
+
+function showErrorPage() {
+    document.getElementById('pageContent').innerHTML = `
+        <div class="error-card">
+            <div class="error-icon">❌</div>
+            <h1 class="error-title">Access Denied</h1>
+            <p class="success-message">
+                This page can only be accessed after a successful payment.
+            </p>
+            <a href="index.html" class="back-btn">Go to Order Page</a>
+        </div>
+    `;
+}
+
+// Run verification on page load
+document.addEventListener('DOMContentLoaded', verifyPaymentSuccess);
+</script>
 </body>
 </html>

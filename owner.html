@@ -276,12 +276,19 @@
 
         // Load and display orders
         function loadOrders() {
-            const orders = JSON.parse(localStorage.getItem('toddyOrders') || '[]');
+            const allOrders = JSON.parse(localStorage.getItem('toddyOrders') || '[]');
+            
+            // CRITICAL: Only show orders with successful payments
+            const successfulOrders = allOrders.filter(order => 
+                order.payment_status === 'SUCCESS' || 
+                (!order.payment_status && order.status) // Legacy orders without payment_status
+            );
+            
             const statusFilter = document.getElementById('statusFilter').value;
             const typeFilter = document.getElementById('typeFilter').value;
             
             // Filter orders
-            let filteredOrders = orders;
+            let filteredOrders = successfulOrders;
             if (statusFilter !== 'all') {
                 filteredOrders = filteredOrders.filter(order => order.status === statusFilter);
             }
@@ -290,7 +297,7 @@
             }
             
             displayOrders(filteredOrders);
-            updateStats(orders);
+            updateStats(successfulOrders); // Only count successful orders in stats
         }
 
         function displayOrders(orders) {
