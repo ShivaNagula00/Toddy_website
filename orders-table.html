@@ -68,6 +68,9 @@
         </div>
     </main>
 
+    <!-- Load Firebase -->
+    <script src="js/firebase.js" type="module"></script>
+
     <script>
         // Authentication check
         function checkOwnerAuth() {
@@ -88,75 +91,111 @@
             // Will redirect to login if not authenticated
         }
 
-        function loadOrdersTable() {
-            const orders = JSON.parse(localStorage.getItem('toddyOrders') || '[]');
-            const container = document.getElementById('ordersTableContainer');
-            
-            if (orders.length === 0) {
-                container.innerHTML = '<p>No orders found.</p>';
-                return;
-            }
+        async function loadOrdersTable() {
+            try {
+                const result = await window.firestore.getAllOrders();
+                const container = document.getElementById('ordersTableContainer');
+                
+                if (!result.success) {
+                    container.innerHTML = '<p>Failed to load orders.</p>';
+                    return;
+                }
+                
+                // Filter only successful orders
+                const orders = result.orders.filter(order => order.paymentStatus === 'SUCCESS');
+                
+                if (orders.length === 0) {
+                    container.innerHTML = '<p>No orders found.</p>';
+                    return;
+                }
 
-            let tableHTML = `
-                <table class="orders-table">
-                    <thead>
-                        <tr>
-                            <th>Date/Time</th>
-                            <th>Customer</th>
-                            <th>Mobile</th>
-                            <th>Product</th>
-                            <th>Type</th>
-                            <th>Total</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-            
-            orders.forEach(order => {
-                tableHTML += `
-                    <tr>
-                        <td>${order.timestamp}</td>
-                        <td>${order.customer}</td>
-                        <td><a href="tel:${order.mobile}">${order.mobile}</a></td>
-                        <td>${order.type.toUpperCase()} - ${order.litres}L</td>
-                        <td>${order.deliveryType === 'delivery' ? '🚚 Delivery' : '🏪 Pickup'}</td>
-                        <td>${order.total}</td>
-                        <td class="status-${order.status || 'new'}">${(order.status || 'new').toUpperCase()}</td>
-                        <td>
-                            ${order.mapsLink ? `<a href="${order.mapsLink}" target="_blank" class="btn btn-primary btn-small">📍</a>` : ''}
-                            <a href="tel:${order.mobile}" class="btn btn-success btn-small">📞</a>
-                        </td>
-                    </tr>
+                let tableHTML = `
+                    <table class="orders-table">
+                        <thead>
+                            <tr>
+                                <th>Date/Time</th>
+                                <th>Customer</th>
+                                <th>Mobile</th>
+                                <th>Product</th>
+                                <th>Type</th>
+                                <th>Total</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
                 `;
-            });
-            
-            tableHTML += '</tbody></table>';
-            container.innerHTML = tableHTML;
+                
+                orders.forEach(order => {
+                    const timestamp = order.createdAt ? new Date(order.createdAt.seconds * 1000).toLocaleString() : 'N/A';
+                    const orderType = order.items ? order.items[0].type : order.type || 'N/A';
+                    const quantity = order.items ? order.items[0].quantity : order.litres || 'N/A';
+                    const total = order.totalAmount ? `₹${order.totalAmount}` : order.total || 'N/A';
+                    
+                    tableHTML += `
+                        <tr>
+                            <td>${timestamp}</td>
+                            <td>${order.customer}</td>
+                            <td><a href="tel:${order.mobile}">${order.mobile}</a></td>
+                            <td>${orderType.toUpperCase()} - ${quantity}L</td>
+                            <td>${order.deliveryType === 'delivery' ? '🚚 Delivery' : '🏪 Pickup'}</td>
+                            <td>${total}</td>
+                            <td class="status-${order.status || order.orderStatus || 'new'}">${(order.status || order.orderStatus || 'new').toUpperCase()}</td>
+                            <td>
+                                ${order.mapsLink ? `<a href="${order.mapsLink}" target="_blank" class="btn btn-primary btn-small">📍</a>` : ''}
+                                <a href="tel:${order.mobile}" class="btn btn-success btn-small">📞</a>
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                tableHTML += '</tbody></table>';
+                container.innerHTML = tableHTML;
+            } catch (error) {
+                console.error('Error loading orders:', error);
+                document.getElementById('ordersTableContainer').innerHTML = '<p>Error loading orders.</p>';
+            }
         }
 
-        function exportOrders() {
-            const orders = JSON.parse(localStorage.getItem('toddyOrders') || '[]');
-            
-            if (orders.length === 0) {
-                alert('No orders to export');
-                return;
+        async function exportOrders() {
+            try {
+                const result = await window.firestore.getAllOrders();
+                
+                if (!result.success || result.orders.length === 0) {
+                    alert('No orders to export');
+                    return;
+                }
+                
+                // Filter only successful orders
+                const orders = result.orders.filter(order => order.paymentStatus === 'SUCCESS');
+                
+                if (orders.length === 0) {
+                    alert('No successful orders to export');
+                    return;
+                }
+
+                let csv = 'Date,Customer,Mobile,Product,Quantity,Type,Address,Total,Status\n';
+                
+                orders.forEach(order => {
+                    const timestamp = order.createdAt ? new Date(order.createdAt.seconds * 1000).toLocaleString() : 'N/A';
+                    const orderType = order.items ? order.items[0].type : order.type || 'N/A';
+                    const quantity = order.items ? order.items[0].quantity : order.litres || 'N/A';
+                    const total = order.totalAmount ? `₹${order.totalAmount}` : order.total || 'N/A';
+                    
+                    csv += `"${timestamp}","${order.customer}","${order.mobile}","${orderType}","${quantity}L","${order.deliveryType}","${order.address || 'N/A'}","${total}","${order.status || order.orderStatus || 'new'}"\n`;
+                });
+
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `toddy-orders-${new Date().toISOString().split('T')[0]}.csv`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error('Error exporting orders:', error);
+                alert('Failed to export orders');
             }
-
-            let csv = 'Date,Customer,Mobile,Product,Quantity,Type,Address,Total,Status\n';
-            
-            orders.forEach(order => {
-                csv += `"${order.timestamp}","${order.customer}","${order.mobile}","${order.type}","${order.litres}L","${order.deliveryType}","${order.address || 'N/A'}","${order.total}","${order.status || 'new'}"\n`;
-            });
-
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `toddy-orders-${new Date().toISOString().split('T')[0]}.csv`;
-            a.click();
-            window.URL.revokeObjectURL(url);
         }
 
         function logout() {

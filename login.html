@@ -77,9 +77,6 @@
         </div>
     </div>
 
-    <!-- Load Firebase -->
-    <script src="js/firebase.js" type="module"></script>
-
     <script>
         // Simple authentication credentials
         const OWNER_CREDENTIALS = {
@@ -87,7 +84,7 @@
             password: 'toddy123'
         };
 
-        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
             e.preventDefault();
             
             const username = document.getElementById('username').value;
@@ -95,19 +92,23 @@
             const errorMsg = document.getElementById('errorMsg');
             
             if (username === OWNER_CREDENTIALS.username && password === OWNER_CREDENTIALS.password) {
-                try {
-                    // Set authentication in Firestore
-                    await window.firestore.setOwnerAuth({
+                // Set authentication in localStorage (always works)
+                localStorage.setItem('ownerAuth', 'authenticated');
+                localStorage.setItem('ownerLoginTime', Date.now().toString());
+                
+                // Try to set in Firestore if available
+                if (window.firestore) {
+                    window.firestore.setOwnerAuth({
                         isAuthenticated: true,
                         loginTime: Date.now(),
                         username: username
+                    }).catch(error => {
+                        console.log('Firestore auth failed, using localStorage only');
                     });
-                    
-                    // Redirect to owner dashboard
-                    window.location.href = 'owner.html';
-                } catch (error) {
-                    errorMsg.textContent = 'Login failed. Please try again.';
                 }
+                
+                // Redirect to owner dashboard
+                window.location.href = 'owner.html';
             } else {
                 errorMsg.textContent = 'Invalid username or password';
                 document.getElementById('password').value = '';
@@ -115,26 +116,14 @@
         });
 
         // Check if already logged in
-        window.addEventListener('load', async () => {
-            setTimeout(async () => {
-                if (window.firestore) {
-                    try {
-                        const result = await window.firestore.getOwnerAuth();
-                        if (result.success && result.auth && result.auth.isAuthenticated) {
-                            const loginTime = result.auth.loginTime || 0;
-                            const currentTime = Date.now();
-                            const sessionDuration = 24 * 60 * 60 * 1000; // 24 hours
-                            
-                            if (currentTime - loginTime < sessionDuration) {
-                                window.location.href = 'owner.html';
-                            }
-                        }
-                    } catch (error) {
-                        console.log('Auth check failed:', error);
-                    }
-                }
-            }, 2000);
-        });
+        const isAuthenticated = localStorage.getItem('ownerAuth') === 'authenticated';
+        const loginTime = parseInt(localStorage.getItem('ownerLoginTime') || '0');
+        const currentTime = Date.now();
+        const sessionDuration = 24 * 60 * 60 * 1000; // 24 hours
+        
+        if (isAuthenticated && (currentTime - loginTime < sessionDuration)) {
+            window.location.href = 'owner.html';
+        }
     </script>
 </body>
 </html>

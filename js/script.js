@@ -1,9 +1,18 @@
 // ===== CONFIGURATION =====
 async function getPrices() {
     try {
-        const result = await window.firestore.getShopSettings();
-        if (result.success && result.settings && result.settings.prices) {
-            return result.settings.prices;
+        // Wait for Firebase to load
+        let attempts = 0;
+        while (!window.firestore && attempts < 30) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
+        }
+        
+        if (window.firestore) {
+            const result = await window.firestore.getShopSettings();
+            if (result.success && result.settings && result.settings.prices) {
+                return result.settings.prices;
+            }
         }
     } catch (error) {
         console.log('Using default prices - Firestore not available');
@@ -30,9 +39,18 @@ let deliveryCharge = 0;
 // ===== INVENTORY MANAGEMENT =====
 async function getInventory() {
     try {
-        const result = await window.firestore.getShopSettings();
-        if (result.success && result.settings && result.settings.inventory) {
-            return result.settings.inventory;
+        // Wait for Firebase to load
+        let attempts = 0;
+        while (!window.firestore && attempts < 30) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
+        }
+        
+        if (window.firestore) {
+            const result = await window.firestore.getShopSettings();
+            if (result.success && result.settings && result.settings.inventory) {
+                return result.settings.inventory;
+            }
         }
     } catch (error) {
         console.log('Using default inventory - Firestore not available');
@@ -58,8 +76,14 @@ async function updateInventory(type, quantity) {
 }
 
 async function checkAvailability(type, quantity) {
-    const inventory = await getInventory();
-    return inventory[type] >= quantity;
+    try {
+        const inventory = await getInventory();
+        return inventory[type] >= quantity;
+    } catch (error) {
+        console.error('Error checking availability:', error);
+        // Return true as fallback to allow order (will be validated again on server)
+        return true;
+    }
 }
 
 // ===== UPI PAYMENT CONFIGURATION =====
@@ -665,8 +689,10 @@ async function payNow() {
     }
     
     // Check inventory availability before payment
-    if (!checkAvailability(selectedType, selectedQuantity)) {
-        alert(`Sorry, only ${getInventory()[selectedType]}L of ${selectedType.toUpperCase()} is available`);
+    const isAvailable = await checkAvailability(selectedType, selectedQuantity);
+    if (!isAvailable) {
+        const inventory = await getInventory();
+        alert(`Sorry, only ${inventory[selectedType]}L of ${selectedType.toUpperCase()} is available`);
         return;
     }
     
@@ -702,46 +728,70 @@ async function payNow() {
 
 // ===== CREATE PENDING ORDER =====
 async function createPendingOrder() {
-    const customerName = document.getElementById('customerName').value;
-    const mobile = document.getElementById('mobileNumber').value;
-    const toddyType = document.getElementById('toddyType').value;
-    const litres = document.getElementById('litres').value;
-    const deliveryType = deliveryOption.value;
-    const address = document.getElementById('address').value;
-    const total = document.getElementById('priceDetails').innerText;
-    
-    const orderId = Date.now().toString();
-    
-    // Create order data for Firestore
-    const orderData = {
-        orderId: orderId,
-        customer: customerName,
-        mobile: mobile,
-        items: [{
-            type: toddyType,
-            quantity: parseInt(litres),
-            price: getPrices()[toddyType]
-        }],
-        totalAmount: parseInt(total.replace(/\D/g, '')),
-        paymentStatus: 'PENDING',
-        orderStatus: 'INITIATED',
-        deliveryType: deliveryType,
-        address: deliveryType === 'delivery' ? address : 'Self Pickup',
-        coordinates: (deliveryType === 'delivery' && customerLat && customerLng) ? `${customerLat},${customerLng}` : null,
-        mapsLink: (deliveryType === 'delivery' && customerLat && customerLng) ? `https://www.google.com/maps/dir/${shopLat},${shopLng}/${customerLat},${customerLng}` : null,
-        deliveryCharge: deliveryCharge,
-        distance: (deliveryType === 'delivery' && customerLat && customerLng) ? calculateDistance(shopLat, shopLng, customerLat, customerLng).toFixed(1) : null
-    };
-    
-    // Save to Firestore
-    const result = await window.firestore.createOrder(orderData);
-    
-    if (result.success) {
-        console.log('PENDING order created in Firestore:', result.orderId);
-        return result.orderId;
-    } else {
-        console.error('Failed to create order:', result.error);
-        alert('Failed to create order. Please try again.');
+    try {
+        // Wait for Firebase to load with timeout
+        let attempts = 0;
+        while (!window.firestore && attempts < 50) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
+        }
+        
+        if (!window.firestore) {
+            console.error('Firebase failed to load after 5 seconds');
+            alert('System is loading. Please wait a moment and try again.');
+            return null;
+        }
+        
+        const customerName = document.getElementById('customerName').value;
+        const mobile = document.getElementById('mobileNumber').value;
+        const toddyType = document.getElementById('toddyType').value;
+        const litres = document.getElementById('litres').value;
+        const deliveryType = deliveryOption.value;
+        const address = document.getElementById('address').value;
+        const total = document.getElementById('priceDetails').innerText;
+        
+        const orderId = Date.now().toString();
+        
+        // Get current prices from Firebase
+        const currentPrices = await getPrices();
+        
+        // Create order data for Firestore
+        const orderData = {
+            orderId: orderId,
+            customer: customerName,
+            mobile: mobile,
+            items: [{
+                type: toddyType,
+                quantity: parseInt(litres),
+                price: currentPrices[toddyType]
+            }],
+            totalAmount: parseInt(total.replace(/\D/g, '')),
+            paymentStatus: 'PENDING',
+            orderStatus: 'INITIATED',
+            deliveryType: deliveryType,
+            address: deliveryType === 'delivery' ? address : 'Self Pickup',
+            coordinates: (deliveryType === 'delivery' && customerLat && customerLng) ? `${customerLat},${customerLng}` : null,
+            mapsLink: (deliveryType === 'delivery' && customerLat && customerLng) ? `https://www.google.com/maps/dir/${shopLat},${shopLng}/${customerLat},${customerLng}` : null,
+            deliveryCharge: deliveryCharge,
+            distance: (deliveryType === 'delivery' && customerLat && customerLng) ? calculateDistance(shopLat, shopLng, customerLat, customerLng).toFixed(1) : null
+        };
+        
+        console.log('Creating order with data:', orderData);
+        
+        // Save to Firestore
+        const result = await window.firestore.createOrder(orderData);
+        
+        if (result.success) {
+            console.log('PENDING order created in Firestore:', result.orderId);
+            return result.orderId;
+        } else {
+            console.error('Failed to create order:', result.error);
+            alert('Failed to create order: ' + result.error);
+            return null;
+        }
+    } catch (error) {
+        console.error('Error in createPendingOrder:', error);
+        alert('Failed to create order. Please check your connection and try again.');
         return null;
     }
 }

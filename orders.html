@@ -121,8 +121,40 @@
             loadOrders();
         }
         
-        function clearAllOrders() {
-            alert('Clear all orders function disabled for safety with Firestore.');
+        // Wait for Firebase to load
+        function waitForFirebase() {
+            return new Promise((resolve) => {
+                if (window.firestore && window.firestore.deleteAllOrders) {
+                    resolve();
+                } else {
+                    setTimeout(() => waitForFirebase().then(resolve), 100);
+                }
+            });
+        }
+
+        async function clearAllOrders() {
+            if (confirm('Are you sure you want to delete ALL orders? This action cannot be undone.')) {
+                try {
+                    await waitForFirebase();
+                    console.log('Clearing all orders from orders.html...');
+                    const result = await window.firestore.deleteAllOrders();
+                    
+                    if (result.success) {
+                        console.log('Clear all successful:', result);
+                        await loadOrders(); // Refresh the display
+                        const message = result.deletedCount ? 
+                            `${result.deletedCount} orders deleted successfully.` : 
+                            'No orders to delete.';
+                        alert(message);
+                    } else {
+                        console.error('Clear all failed:', result.error);
+                        alert('Failed to delete orders: ' + result.error);
+                    }
+                } catch (error) {
+                    console.error('Error in clearAllOrders:', error);
+                    alert('Failed to delete orders: ' + error.message);
+                }
+            }
         }
         
         // Load orders on page load

@@ -22,7 +22,8 @@ import {
   serverTimestamp,
   onSnapshot,
   setDoc,
-  getDoc
+  getDoc,
+  deleteDoc
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 const app = initializeApp(firebaseConfig);
@@ -145,6 +146,48 @@ const firestore = {
     }
   },
 
+  // Delete Order
+  async deleteOrder(orderId) {
+    try {
+      console.log('Attempting to delete order:', orderId);
+      const orderRef = doc(db, 'orders', orderId);
+      await deleteDoc(orderRef);
+      console.log('Order deleted successfully:', orderId);
+      return { success: true };
+    } catch (error) {
+      console.error('Error deleting order:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // Delete All Orders
+  async deleteAllOrders() {
+    try {
+      console.log('Attempting to delete all orders...');
+      const q = query(collection(db, 'orders'));
+      const querySnapshot = await getDocs(q);
+      
+      console.log('Found', querySnapshot.size, 'orders to delete');
+      
+      if (querySnapshot.size === 0) {
+        return { success: true, message: 'No orders to delete' };
+      }
+      
+      const deletePromises = [];
+      querySnapshot.forEach((docSnapshot) => {
+        console.log('Queuing delete for order:', docSnapshot.id);
+        deletePromises.push(deleteDoc(docSnapshot.ref));
+      });
+      
+      await Promise.all(deletePromises);
+      console.log('All orders deleted successfully');
+      return { success: true, deletedCount: querySnapshot.size };
+    } catch (error) {
+      console.error('Error deleting all orders:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
   // Get Owner Authentication
   async getOwnerAuth() {
     try {
@@ -165,3 +208,16 @@ const firestore = {
 
 // Export firestore helpers globally
 window.firestore = firestore;
+
+// Debug logging
+console.log('Firebase initialized successfully');
+console.log('Available Firestore functions:', Object.keys(firestore));
+
+// Ensure functions are available immediately
+setTimeout(() => {
+  if (window.firestore) {
+    console.log('Firebase ready for use');
+  } else {
+    console.error('Firebase failed to initialize');
+  }
+}, 1000);
