@@ -90,10 +90,11 @@ async function checkAvailability(type, quantity) {
 const UPI_ID = "6302564464@pthdfc"; // CHANGE TO YOUR ACTUAL UPI ID
 const MERCHANT_NAME = "Nagula Shiva Sai"; // CHANGE TO YOUR SHOP NAME
 
-// ===== YOUR SHOP LOCATION (PRECISE COORDINATES FOR SANDRALAPALLY) =====
-const shopLat = 18.432; // More precise latitude for Sandralapally area
-const shopLng = 78.474; // More precise longitude for Sandralapally area
-const shopAddress = "JVRF+996 Kallu manduva kodimial, Sandralapally X Rd, Sandralapally, Telangana 505501"; // Your actual shop address
+// ===== FIXED SHOP LOCATION (ACCURATE COORDINATES FOR SANDRALAPALLY) =====
+const shopLat = 18.64110; // Correct latitude for Sandralapally
+const shopLng = 78.87335; // Correct longitude for Sandralapally
+const shopAddress = "JVRF+996 Kallu manduva kodimial, Sandralapally X Rd, Sandralapally, Telangana 505501";
+const shopGoogleMapsUrl = `https://www.google.com/maps?q=${shopLat},${shopLng}`;
 
 // ===== GLOBAL VARIABLES =====
 let map;
@@ -171,6 +172,23 @@ function toggleDelivery() {
     calculateTotal();
 }
 
+// ===== LOCATION ERROR HANDLING =====
+function showLocationError(message) {
+    const error = document.getElementById('locationError');
+    if (error) {
+        error.textContent = message;
+    }
+    console.error('Location Error:', message);
+}
+
+function resetLocationButton() {
+    const btn = document.getElementById('useLocationBtn');
+    if (btn) {
+        btn.textContent = '📍 Use Current Location';
+        btn.disabled = false;
+    }
+}
+
 // ===== AUTOMATIC GPS LOCATION FETCHING =====
 function getCurrentLocation() {
     const btn = document.getElementById('useLocationBtn');
@@ -207,6 +225,13 @@ function getCurrentLocation() {
             // Show map with both shop and customer location
             document.getElementById('mapContainer').classList.remove('hidden');
             initMap();
+            
+            // Initialize Google Maps only if API is loaded
+            if (typeof google !== 'undefined' && google.maps) {
+                initGoogleMap();
+            } else {
+                console.log('Google Maps API not loaded - using Leaflet map only');
+            }
             
             // Update button state
             btn.textContent = '✅ Location Found';
@@ -295,36 +320,6 @@ function reverseGeocode(lat, lng) {
         });
 }
 
-// ===== FIND EXACT SHOP COORDINATES (FOR DEBUGGING) =====
-function findShopLocation() {
-    const shopAddressForSearch = "Sandralapally X Rd, Sandralapally, Telangana 505501, India";
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(shopAddressForSearch)}&limit=1`;
-    
-    fetch(url)
-        .then(response => response.json())
-        .then(data => {
-            if (data && data.length > 0) {
-                const foundLat = parseFloat(data[0].lat);
-                const foundLng = parseFloat(data[0].lon);
-                console.log('FOUND SHOP COORDINATES:');
-                console.log('Latitude:', foundLat);
-                console.log('Longitude:', foundLng);
-                console.log('Address:', data[0].display_name);
-                console.log('UPDATE YOUR CODE WITH THESE COORDINATES:');
-                console.log(`const shopLat = ${foundLat};`);
-                console.log(`const shopLng = ${foundLng};`);
-            } else {
-                console.log('Shop location not found in search');
-            }
-        })
-        .catch(error => {
-            console.error('Error finding shop location:', error);
-        });
-}
-
-// Call this function to find exact coordinates
-findShopLocation();
-
 // ===== SEARCH ADDRESS AND SET LOCATION =====
 function searchAddress() {
     const address = document.getElementById('address').value.trim();
@@ -354,6 +349,13 @@ function searchAddress() {
                 document.getElementById('mapContainer').classList.remove('hidden');
                 initMap();
                 
+                // Initialize Google Maps only if API is loaded
+                if (typeof google !== 'undefined' && google.maps) {
+                    initGoogleMap();
+                } else {
+                    console.log('Google Maps API not loaded - using Leaflet map only');
+                }
+                
                 alert('Location found! You can drag the marker to adjust if needed.');
             } else {
                 alert('Address not found. Please try a different address or be more specific.');
@@ -363,6 +365,67 @@ function searchAddress() {
             console.error('Geocoding error:', error);
             alert('Error finding address. Please try again.');
         });
+}
+
+// ===== GOOGLE MAPS INTEGRATION =====
+let googleMap;
+let googleMapMarker;
+
+// Initialize Google Maps when API loads
+function initGoogleMap() {
+    if (!customerLat || !customerLng) return;
+    
+    const mapOptions = {
+        zoom: 13,
+        center: { lat: (shopLat + customerLat) / 2, lng: (shopLng + customerLng) / 2 }
+    };
+    
+    googleMap = new google.maps.Map(document.getElementById('googleMap'), mapOptions);
+    
+    // Shop marker (red)
+    new google.maps.Marker({
+        position: { lat: shopLat, lng: shopLng },
+        map: googleMap,
+        title: 'Toddy Shop',
+        icon: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png'
+    });
+    
+    // Customer marker (blue, draggable)
+    googleMapMarker = new google.maps.Marker({
+        position: { lat: customerLat, lng: customerLng },
+        map: googleMap,
+        title: 'Your Location',
+        draggable: true
+    });
+    
+    // Update location when marker is dragged
+    googleMapMarker.addListener('dragend', function() {
+        const position = googleMapMarker.getPosition();
+        customerLat = position.lat();
+        customerLng = position.lng();
+        reverseGeocode(customerLat, customerLng);
+        calculateDeliveryCharge();
+    });
+}
+
+// Show fixed shop location on Google Maps
+function showShopLocationMap() {
+    const mapContainer = document.getElementById('shopMapContainer');
+    if (!mapContainer) return;
+    
+    const shopMapOptions = {
+        zoom: 15,
+        center: { lat: shopLat, lng: shopLng }
+    };
+    
+    const shopMap = new google.maps.Map(document.getElementById('shopMap'), shopMapOptions);
+    
+    new google.maps.Marker({
+        position: { lat: shopLat, lng: shopLng },
+        map: shopMap,
+        title: 'Toddy Shop - Pickup Location',
+        icon: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png'
+    });
 }
 
 // ===== LEAFLET MAP INTEGRATION =====
@@ -440,9 +503,8 @@ function updateAddressFromCoords(lat, lng) {
         });
 }
 
-// ===== DISTANCE CALCULATION =====
+// ===== ACCURATE DISTANCE CALCULATION USING HAVERSINE FORMULA =====
 function calculateDistance(lat1, lng1, lat2, lng2) {
-    // Using Haversine formula for distance calculation
     const R = 6371; // Earth's radius in kilometers
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLng = (lng2 - lng1) * Math.PI / 180;
@@ -457,7 +519,7 @@ function calculateDistance(lat1, lng1, lat2, lng2) {
     return distance;
 }
 
-// ===== DELIVERY CHARGE CALCULATION =====
+// ===== ACCURATE DELIVERY CHARGE CALCULATION =====
 function calculateDeliveryCharge() {
     if (deliveryOption.value !== 'delivery' || !customerLat || !customerLng) {
         deliveryCharge = 0;
@@ -467,10 +529,10 @@ function calculateDeliveryCharge() {
         return;
     }
     
-    // Calculate distance from shop to customer
+    // Calculate accurate distance using fixed shop coordinates
     const distance = calculateDistance(shopLat, shopLng, customerLat, customerLng);
     
-    // Calculate delivery charge: ₹30 for first 3km, ₹10 per extra km
+    // Delivery charge: ₹30 for first 3km, ₹10 per additional km
     if (distance <= 3) {
         deliveryCharge = 30;
     } else {
@@ -478,16 +540,15 @@ function calculateDeliveryCharge() {
         deliveryCharge = 30 + (extraKm * 10);
     }
     
-    // Update UI with distance and delivery charge
+    // Update UI with accurate distance and charge
     document.getElementById('distanceInfo').textContent = 
         `Distance: ${distance.toFixed(1)} km from shop`;
     document.getElementById('deliveryChargeInfo').textContent = 
         `Delivery Charge: ₹${deliveryCharge}`;
     
-    // Recalculate total amount
     calculateTotal();
     
-    console.log(`Distance: ${distance.toFixed(1)}km, Delivery: ₹${deliveryCharge}`);
+    console.log(`Accurate Distance: ${distance.toFixed(1)}km, Delivery: ₹${deliveryCharge}`);
 }
 
 // ===== INVENTORY DISPLAY AND VALIDATION =====
@@ -755,7 +816,7 @@ async function createPendingOrder() {
         // Get current prices from Firebase
         const currentPrices = await getPrices();
         
-        // Create order data for Firestore
+        // Create order data with accurate location info
         const orderData = {
             orderId: orderId,
             customer: customerName,
@@ -773,7 +834,13 @@ async function createPendingOrder() {
             coordinates: (deliveryType === 'delivery' && customerLat && customerLng) ? `${customerLat},${customerLng}` : null,
             mapsLink: (deliveryType === 'delivery' && customerLat && customerLng) ? `https://www.google.com/maps/dir/${shopLat},${shopLng}/${customerLat},${customerLng}` : null,
             deliveryCharge: deliveryCharge,
-            distance: (deliveryType === 'delivery' && customerLat && customerLng) ? calculateDistance(shopLat, shopLng, customerLat, customerLng).toFixed(1) : null
+            distance: (deliveryType === 'delivery' && customerLat && customerLng) ? calculateDistance(shopLat, shopLng, customerLat, customerLng).toFixed(1) : null,
+            shopLocation: {
+                lat: shopLat,
+                lng: shopLng,
+                address: shopAddress,
+                googleMapsUrl: shopGoogleMapsUrl
+            }
         };
         
         console.log('Creating order with data:', orderData);

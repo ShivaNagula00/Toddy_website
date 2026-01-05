@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Distance Calculation Test</title>
+</head>
+<body>
+    <h1>Distance Calculation Test</h1>
+    <div id="results"></div>
+    
+    <script>
+        // Fixed shop coordinates
+        const shopLat = 18.64110;
+        const shopLng = 78.87335;
+        
+        // Haversine formula for distance calculation
+        function calculateDistance(lat1, lng1, lat2, lng2) {
+            const R = 6371; // Earth's radius in kilometers
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+            
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLng/2) * Math.sin(dLng/2);
+            
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const distance = R * c;
+            
+            return distance;
+        }
+        
+        // Test with sample locations
+        const testLocations = [
+            { name: "Same location (shop)", lat: 18.64110, lng: 78.87335 },
+            { name: "1km away", lat: 18.65010, lng: 78.87335 },
+            { name: "5km away", lat: 18.68610, lng: 78.87335 },
+            { name: "Nearby area", lat: 18.64000, lng: 78.88000 }
+        ];
+        
+        let results = "<h2>Distance Test Results:</h2>";
+        results += `<p><strong>Shop Location:</strong> ${shopLat}, ${shopLng}</p><br>`;
+        
+        testLocations.forEach(location => {
+            const distance = calculateDistance(shopLat, shopLng, location.lat, location.lng);
+            const deliveryCharge = distance <= 3 ? 30 : 30 + (Math.ceil(distance - 3) * 10);
+            
+            results += `<p><strong>${location.name}:</strong><br>`;
+            results += `Coordinates: ${location.lat}, ${location.lng}<br>`;
+            results += `Distance: ${distance.toFixed(2)} km<br>`;
+            results += `Delivery Charge: ₹${deliveryCharge}</p><br>`;
+        });
+        
+        document.getElementById('results').innerHTML = results;
+    </script>
+</body>
+</html>

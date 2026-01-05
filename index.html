@@ -82,6 +82,7 @@
                     
                     <div id="mapContainer" class="hidden">
                         <div id="map"></div>
+                        <div id="googleMap" style="height: 300px; width: 100%; margin-top: 10px;"></div>
                         <p class="map-instruction" data-en="✅ Location found! Red marker = Shop, Blue marker = Your location (drag to fine-tune if needed)" data-te="✅ లొకేషన్ కనుగొనబడింది! ఎర్ర మార్కర్ = దుకానం, నీల మార్కర్ = మీ లొకేషన్">✅ Location found! Red marker = Shop, Blue marker = Your location (drag to fine-tune if needed)</p>
                     </div>
                     
@@ -142,6 +143,9 @@
     
     <!-- Load Leaflet JS for free maps -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Google Maps JavaScript API (Replace YOUR_API_KEY with actual key) -->
+    <!-- <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=places" async defer></script> -->
     
     <!-- Load Firebase -->
     <script src="js/firebase.js" type="module"></script>
