@@ -144,8 +144,8 @@
     <!-- Load Leaflet JS for free maps -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
-    <!-- Google Maps JavaScript API (Replace YOUR_API_KEY with actual key) -->
-    <!-- <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=places" async defer></script> -->
+    <!-- Google Maps will be loaded dynamically only when needed -->
+    <!-- <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=places" async defer onerror="handleGoogleMapsError()" onload="handleGoogleMapsLoad()"></script> -->
     
     <!-- Load Firebase -->
     <script src="js/firebase.js" type="module"></script>

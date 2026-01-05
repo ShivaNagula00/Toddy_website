@@ -226,12 +226,8 @@ function getCurrentLocation() {
             document.getElementById('mapContainer').classList.remove('hidden');
             initMap();
             
-            // Initialize Google Maps only if API is loaded
-            if (typeof google !== 'undefined' && google.maps) {
-                initGoogleMap();
-            } else {
-                console.log('Google Maps API not loaded - using Leaflet map only');
-            }
+            // Skip Google Maps initialization to prevent errors
+            console.log('Google Maps disabled - using Leaflet map only');
             
             // Update button state
             btn.textContent = '✅ Location Found';
@@ -349,12 +345,8 @@ function searchAddress() {
                 document.getElementById('mapContainer').classList.remove('hidden');
                 initMap();
                 
-                // Initialize Google Maps only if API is loaded
-                if (typeof google !== 'undefined' && google.maps) {
-                    initGoogleMap();
-                } else {
-                    console.log('Google Maps API not loaded - using Leaflet map only');
-                }
+                // Skip Google Maps initialization to prevent errors
+                console.log('Google Maps disabled - using Leaflet map only');
                 
                 alert('Location found! You can drag the marker to adjust if needed.');
             } else {
@@ -370,70 +362,28 @@ function searchAddress() {
 // ===== GOOGLE MAPS INTEGRATION =====
 let googleMap;
 let googleMapMarker;
+let googleMapInitialized = false;
 
-// Initialize Google Maps when API loads
+// Initialize Google Maps when API loads (with guard to prevent duplicate initialization)
 function initGoogleMap() {
-    if (!customerLat || !customerLng) return;
+    if (!customerLat || !customerLng || googleMapInitialized) return;
     
-    const mapOptions = {
-        zoom: 13,
-        center: { lat: (shopLat + customerLat) / 2, lng: (shopLng + customerLng) / 2 },
-        // Mobile-friendly options
-        gestureHandling: 'cooperative',
-        zoomControl: true,
-        mapTypeControl: false,
-        scaleControl: false,
-        streetViewControl: false,
-        rotateControl: false,
-        fullscreenControl: true
-    };
+    // Check if Google Maps API is available
+    if (!window.google || !window.google.maps) {
+        console.log('Google Maps API not available');
+        return;
+    }
     
-    googleMap = new google.maps.Map(document.getElementById('googleMap'), mapOptions);
-    
-    // Shop marker (red)
-    new google.maps.Marker({
-        position: { lat: shopLat, lng: shopLng },
-        map: googleMap,
-        title: 'Toddy Shop',
-        icon: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png'
-    });
-    
-    // Customer marker (blue, draggable)
-    googleMapMarker = new google.maps.Marker({
-        position: { lat: customerLat, lng: customerLng },
-        map: googleMap,
-        title: 'Your Location',
-        draggable: true
-    });
-    
-    // Update location when marker is dragged
-    googleMapMarker.addListener('dragend', function() {
-        const position = googleMapMarker.getPosition();
-        customerLat = position.lat();
-        customerLng = position.lng();
-        reverseGeocode(customerLat, customerLng);
-        calculateDeliveryCharge();
-    });
-    
-    // Add click listener to open in Google Maps app on mobile
-    googleMap.addListener('click', () => {
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        if (isMobile) {
-            window.open(`https://www.google.com/maps/dir/${shopLat},${shopLng}/${customerLat},${customerLng}`, '_blank');
+    try {
+        const mapElement = document.getElementById('googleMap');
+        if (!mapElement) {
+            console.log('Google Map element not found');
+            return;
         }
-    });
-}
-
-// Show fixed shop location on Google Maps
-function showShopLocationMap() {
-    const mapContainer = document.getElementById('shopMapContainer');
-    if (!mapContainer) return;
-    
-    // Check if Google Maps is available
-    if (typeof google !== 'undefined' && google.maps) {
-        const shopMapOptions = {
-            zoom: 15,
-            center: { lat: shopLat, lng: shopLng },
+        
+        const mapOptions = {
+            zoom: 13,
+            center: { lat: (shopLat + customerLat) / 2, lng: (shopLng + customerLng) / 2 },
             // Mobile-friendly options
             gestureHandling: 'cooperative',
             zoomControl: true,
@@ -444,37 +394,66 @@ function showShopLocationMap() {
             fullscreenControl: true
         };
         
-        const shopMap = new google.maps.Map(document.getElementById('shopMap'), shopMapOptions);
+        googleMap = new google.maps.Map(mapElement, mapOptions);
         
+        // Shop marker (red)
         new google.maps.Marker({
             position: { lat: shopLat, lng: shopLng },
-            map: shopMap,
-            title: 'Toddy Shop - Pickup Location',
+            map: googleMap,
+            title: 'Toddy Shop',
             icon: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png'
         });
         
-        // Add click listener for mobile devices
-        shopMap.addListener('click', () => {
+        // Customer marker (blue, draggable)
+        googleMapMarker = new google.maps.Marker({
+            position: { lat: customerLat, lng: customerLng },
+            map: googleMap,
+            title: 'Your Location',
+            draggable: true
+        });
+        
+        // Update location when marker is dragged
+        googleMapMarker.addListener('dragend', function() {
+            const position = googleMapMarker.getPosition();
+            customerLat = position.lat();
+            customerLng = position.lng();
+            reverseGeocode(customerLat, customerLng);
+            calculateDeliveryCharge();
+        });
+        
+        // Add click listener to open in Google Maps app on mobile
+        googleMap.addListener('click', () => {
             const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
             if (isMobile) {
-                window.open(`https://www.google.com/maps?q=${shopLat},${shopLng}`, '_blank');
+                window.open(`https://www.google.com/maps/dir/${shopLat},${shopLng}/${customerLat},${customerLng}`, '_blank');
             }
         });
-    } else {
-        // Fallback for when Google Maps is not available
-        mapContainer.innerHTML = `
-            <div style="background:#f8f9fa;padding:20px;border-radius:8px;text-align:center;border:1px solid #ddd">
-                <h4 style="color:#28a745;margin-bottom:15px">📍 Shop Location</h4>
-                <p style="margin-bottom:15px;color:#666">Map not available. Use the button below to open location.</p>
-                <a href="https://www.google.com/maps?q=${shopLat},${shopLng}" 
-                   target="_blank" 
-                   style="background:#4285f4;color:white;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold">
-                   🗺️ Open in Google Maps
-                </a>
-            </div>
-        `;
+        
+        googleMapInitialized = true;
+        console.log('Google Maps initialized successfully');
+        
+    } catch (error) {
+        console.error('Error initializing Google Maps:', error);
+        // Show fallback message if Google Maps fails
+        const mapElement = document.getElementById('googleMap');
+        if (mapElement) {
+            mapElement.innerHTML = `
+                <div style="background:#f8f9fa;padding:20px;border-radius:8px;text-align:center;border:1px solid #ddd;height:280px;display:flex;align-items:center;justify-content:center;flex-direction:column">
+                    <h4 style="color:#dc3545;margin-bottom:15px">Map Not Available</h4>
+                    <p style="margin-bottom:15px;color:#666">Google Maps failed to load. Use the location buttons above.</p>
+                    <a href="https://www.google.com/maps/dir/${shopLat},${shopLng}/${customerLat},${customerLng}" 
+                       target="_blank" 
+                       style="background:#4285f4;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block">
+                       🗺️ Open in Google Maps
+                    </a>
+                </div>
+            `;
+        }
     }
 }
+
+// Show fixed shop location on Google Maps (REMOVED - handled in order-success.html)
+// This function was causing duplicate shop location displays
 
 // ===== LEAFLET MAP INTEGRATION =====
 function initMap() {

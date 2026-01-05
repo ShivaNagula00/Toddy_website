@@ -28,10 +28,27 @@
 <!-- Load Firebase -->
 <script src="js/firebase.js" type="module"></script>
 
-<!-- Google Maps JavaScript API (Replace YOUR_API_KEY with actual key) -->
-<!-- <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=places" async defer></script> -->
+<!-- Google Maps will be loaded dynamically only when needed -->
+<!-- <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=places" async defer onerror="handleGoogleMapsError()" onload="handleGoogleMapsLoad()"></script> -->
 
 <script>
+// Global variables to prevent duplicate initialization
+let googleMapsLoaded = false;
+let googleMapsError = false;
+let pickupLocationRendered = false;
+
+// Handle Google Maps API load success
+function handleGoogleMapsLoad() {
+    googleMapsLoaded = true;
+    console.log('Google Maps API loaded successfully');
+}
+
+// Handle Google Maps API load error
+function handleGoogleMapsError() {
+    googleMapsError = true;
+    console.log('Google Maps API failed to load');
+}
+
 // CRITICAL: Verify payment success before showing success page
 async function verifyPaymentSuccess() {
     try {
@@ -67,25 +84,6 @@ function showSuccessPage(order) {
     const total = order.totalAmount ? `₹${order.totalAmount}` : order.total;
     const isPickup = order.deliveryType === 'pickup';
     
-    // Shop location info for pickup orders
-    const shopLocationHtml = isPickup ? `
-        <div class="shop-location" style="background:#e8f5e8;padding:20px;border-radius:8px;margin:20px 0;border-left:4px solid #28a745">
-            <h3 style="color:#28a745;margin-bottom:15px">📍 Shop Location for Pickup</h3>
-            <p><strong>Address:</strong><br>${order.shopLocation?.address || 'JVRF+996 Kallu manduva kodimial, Sandralapally X Rd, Sandralapally, Telangana 505501'}</p>
-            <div style="margin-top:15px">
-                <a href="${order.shopLocation?.googleMapsUrl || 'https://www.google.com/maps?q=18.4319,78.4744'}" 
-                   target="_blank" 
-                   style="background:#4285f4;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;margin-right:10px">
-                   🗺️ Open in Google Maps
-                </a>
-                <a href="tel:+916302564464" 
-                   style="background:#28a745;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block">
-                   📞 Call Shop
-                </a>
-            </div>
-        </div>
-    ` : '';
-    
     document.getElementById('pageContent').innerHTML = `
         <div class="success-card">
             <div class="success-icon">✅</div>
@@ -103,22 +101,12 @@ function showSuccessPage(order) {
                 ${order.deliveryType === 'delivery' && order.distance ? `<p><strong>Distance:</strong> ${order.distance} km</p>` : ''}
             </div>
             
-            ${shopLocationHtml}
-            
-            ${isPickup ? `
-                <div id="shopMapContainer" style="margin:20px 0;width:100%;overflow:hidden">
-                    <h4 style="color:#28a745;margin-bottom:10px">📍 Shop Location Map</h4>
-                    <div id="shopMap" style="height:300px;width:100%;border-radius:8px;border:1px solid #ddd"></div>
-                    <p style="font-size:12px;color:#666;margin-top:5px;text-align:center">Tap map to open in Google Maps app</p>
-                </div>
-            ` : ''}
-            
             <div class="order-info">
                 <h3>What happens next?</h3>
                 <ul>
                     <li>You will receive a confirmation call within 30 minutes</li>
                     ${isPickup ? 
-                        '<li>Visit our shop at the address shown above to collect your order</li>' + 
+                        '<li>Visit our shop at the address shown below to collect your order</li>' + 
                         '<li>Use Google Maps for easy navigation to our location</li>' :
                         '<li>For delivery orders, our team will coordinate timing</li>'
                     }
@@ -130,69 +118,41 @@ function showSuccessPage(order) {
         </div>
     `;
     
-    // Initialize shop map for pickup orders (only if Google Maps is available)
-    if (isPickup) {
-        // Check if Google Maps API is loaded
-        const checkGoogleMaps = () => {
-            if (typeof google !== 'undefined' && google.maps) {
-                // Google Maps is available - initialize map
-                const shopLat = 18.64110;
-                const shopLng = 78.87335;
-                
-                const mapOptions = {
-                    zoom: 15,
-                    center: { lat: shopLat, lng: shopLng },
-                    // Mobile-friendly options
-                    gestureHandling: 'cooperative',
-                    zoomControl: true,
-                    mapTypeControl: false,
-                    scaleControl: false,
-                    streetViewControl: false,
-                    rotateControl: false,
-                    fullscreenControl: true
-                };
-                
-                const shopMap = new google.maps.Map(document.getElementById('shopMap'), mapOptions);
-                
-                new google.maps.Marker({
-                    position: { lat: shopLat, lng: shopLng },
-                    map: shopMap,
-                    title: 'Toddy Shop - Pickup Location',
-                    icon: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png'
-                });
-                
-                // Add click listener to open in Google Maps app on mobile
-                shopMap.addListener('click', () => {
-                    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-                    if (isMobile) {
-                        window.open(`https://www.google.com/maps?q=${shopLat},${shopLng}`, '_blank');
-                    }
-                });
-            } else {
-                // Google Maps not available - hide map container and show alternative
-                const mapContainer = document.getElementById('shopMapContainer');
-                if (mapContainer) {
-                    mapContainer.innerHTML = `
-                        <div style="background:#f8f9fa;padding:20px;border-radius:8px;text-align:center;border:1px solid #ddd">
-                            <h4 style="color:#28a745;margin-bottom:15px">📍 Shop Location</h4>
-                            <p style="margin-bottom:15px;color:#666">Map not available. Use the button below to open location in Google Maps.</p>
-                            <a href="https://www.google.com/maps?q=18.64110,78.87335" 
-                               target="_blank" 
-                               style="background:#4285f4;color:white;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold">
-                               🗺️ Open in Google Maps
-                            </a>
-                        </div>
-                    `;
-                }
-            }
-        };
-        
-        // Check immediately and after a delay for API loading
-        setTimeout(checkGoogleMaps, 100);
-        setTimeout(checkGoogleMaps, 1000);
-        setTimeout(checkGoogleMaps, 3000);
+    // Show pickup location ONLY if order type is pickup AND not already rendered
+    if (isPickup && !pickupLocationRendered) {
+        showPickupLocation();
+        pickupLocationRendered = true;
     }
 }
+
+// Separate function to handle pickup location rendering
+function showPickupLocation() {
+    const pickupHtml = `
+        <div class="shop-location" style="background:#e8f5e8;padding:20px;border-radius:8px;margin:20px 0;border-left:4px solid #28a745">
+            <h3 style="color:#28a745;margin-bottom:15px">📍 Shop Location for Pickup</h3>
+            <p><strong>Address:</strong><br>JVRF+996 Kallu manduva kodimial, Sandralapally X Rd, Sandralapally, Telangana 505501</p>
+            <div style="margin-top:15px">
+                <a href="https://www.google.com/maps?q=18.64110,78.87335" 
+                   target="_blank" 
+                   style="background:#4285f4;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;margin-right:10px">
+                   🗺️ Open in Google Maps
+                </a>
+                <a href="tel:+916302564464" 
+                   style="background:#28a745;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block">
+                   📞 Call Shop
+                </a>
+            </div>
+        </div>
+    `;
+    
+    // Insert pickup location after the success card
+    const successCard = document.querySelector('.success-card');
+    if (successCard) {
+        successCard.insertAdjacentHTML('beforeend', pickupHtml);
+    }
+}
+
+
 
 function showErrorPage() {
     document.getElementById('pageContent').innerHTML = `
