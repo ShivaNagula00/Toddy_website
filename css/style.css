@@ -79,4 +79,9 @@ button:hover{background:#1b5e20}
     main{padding:15px}
     #map{height:250px}
     .customer-details,.location-section{padding:10px}
+    
+    /* Mobile-specific map styles */
+    #shopMap{height:250px!important;width:100%!important}
+    .shop-location{padding:15px!important}
+    .shop-location a{display:block;margin:5px 0;text-align:center;padding:12px!important}
 }

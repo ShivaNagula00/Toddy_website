@@ -377,7 +377,15 @@ function initGoogleMap() {
     
     const mapOptions = {
         zoom: 13,
-        center: { lat: (shopLat + customerLat) / 2, lng: (shopLng + customerLng) / 2 }
+        center: { lat: (shopLat + customerLat) / 2, lng: (shopLng + customerLng) / 2 },
+        // Mobile-friendly options
+        gestureHandling: 'cooperative',
+        zoomControl: true,
+        mapTypeControl: false,
+        scaleControl: false,
+        streetViewControl: false,
+        rotateControl: false,
+        fullscreenControl: true
     };
     
     googleMap = new google.maps.Map(document.getElementById('googleMap'), mapOptions);
@@ -406,6 +414,14 @@ function initGoogleMap() {
         reverseGeocode(customerLat, customerLng);
         calculateDeliveryCharge();
     });
+    
+    // Add click listener to open in Google Maps app on mobile
+    googleMap.addListener('click', () => {
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        if (isMobile) {
+            window.open(`https://www.google.com/maps/dir/${shopLat},${shopLng}/${customerLat},${customerLng}`, '_blank');
+        }
+    });
 }
 
 // Show fixed shop location on Google Maps
@@ -413,19 +429,51 @@ function showShopLocationMap() {
     const mapContainer = document.getElementById('shopMapContainer');
     if (!mapContainer) return;
     
-    const shopMapOptions = {
-        zoom: 15,
-        center: { lat: shopLat, lng: shopLng }
-    };
-    
-    const shopMap = new google.maps.Map(document.getElementById('shopMap'), shopMapOptions);
-    
-    new google.maps.Marker({
-        position: { lat: shopLat, lng: shopLng },
-        map: shopMap,
-        title: 'Toddy Shop - Pickup Location',
-        icon: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png'
-    });
+    // Check if Google Maps is available
+    if (typeof google !== 'undefined' && google.maps) {
+        const shopMapOptions = {
+            zoom: 15,
+            center: { lat: shopLat, lng: shopLng },
+            // Mobile-friendly options
+            gestureHandling: 'cooperative',
+            zoomControl: true,
+            mapTypeControl: false,
+            scaleControl: false,
+            streetViewControl: false,
+            rotateControl: false,
+            fullscreenControl: true
+        };
+        
+        const shopMap = new google.maps.Map(document.getElementById('shopMap'), shopMapOptions);
+        
+        new google.maps.Marker({
+            position: { lat: shopLat, lng: shopLng },
+            map: shopMap,
+            title: 'Toddy Shop - Pickup Location',
+            icon: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png'
+        });
+        
+        // Add click listener for mobile devices
+        shopMap.addListener('click', () => {
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            if (isMobile) {
+                window.open(`https://www.google.com/maps?q=${shopLat},${shopLng}`, '_blank');
+            }
+        });
+    } else {
+        // Fallback for when Google Maps is not available
+        mapContainer.innerHTML = `
+            <div style="background:#f8f9fa;padding:20px;border-radius:8px;text-align:center;border:1px solid #ddd">
+                <h4 style="color:#28a745;margin-bottom:15px">📍 Shop Location</h4>
+                <p style="margin-bottom:15px;color:#666">Map not available. Use the button below to open location.</p>
+                <a href="https://www.google.com/maps?q=${shopLat},${shopLng}" 
+                   target="_blank" 
+                   style="background:#4285f4;color:white;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold">
+                   🗺️ Open in Google Maps
+                </a>
+            </div>
+        `;
+    }
 }
 
 // ===== LEAFLET MAP INTEGRATION =====
