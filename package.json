@@ -1,13 +1,34 @@
 {
-  "name": "toddy-website",
+  "name": "toddy-milk-delivery",
   "version": "1.0.0",
-  "description": "Toddy Milk Delivery Website",
+  "description": "A modern web application for ordering fresh toddy milk with real-time inventory management",
   "main": "index.html",
   "scripts": {
-    "start": "npx http-server . -p 3000 -o",
-    "dev": "npx live-server --port=3000 --open=/index.html"
+    "start": "python -m http.server 8000",
+    "dev": "python -m http.server 3000",
+    "test": "echo \"Open tests/test-*.html in browser\""
   },
-  "keywords": ["toddy", "delivery", "website"],
-  "author": "Nagula Shiva Sai",
-  "license": "MIT"
+  "keywords": [
+    "toddy",
+    "milk",
+    "delivery",
+    "firebase",
+    "upi",
+    "food-delivery"
+  ],
+  "author": "Toddy Milk Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/toddy-milk-delivery.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/toddy-milk-delivery/issues"
+  },
+  "homepage": "https://github.com/your-username/toddy-milk-delivery#readme",
+  "dependencies": {},
+  "devDependencies": {},
+  "engines": {
+    "node": ">=14.0.0"
+  }
 }

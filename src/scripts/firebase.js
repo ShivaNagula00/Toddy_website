@@ -1,11 +1,17 @@
-// Firebase Configuration
-const firebaseConfig = {
+// Firebase Configuration from environment
+const firebaseConfig = window.FIREBASE_CONFIG || {
   apiKey: "AIzaSyACtkNvY3wfOmBp34Ddj8MDecw0rXSWLUc",
   authDomain: "toddy-orders.firebaseapp.com",
   projectId: "toddy-orders",
   storageBucket: "toddy-orders.firebasestorage.app",
   messagingSenderId: "199463515144",
   appId: "1:199463515144:web:4211e7276ac01a61288dbd"
+};
+
+// Get CDN URLs from config
+const cdnUrls = window.FIREBASE_CDN || {
+  app: 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js',
+  firestore: 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js'
 };
 
 // Initialize Firebase

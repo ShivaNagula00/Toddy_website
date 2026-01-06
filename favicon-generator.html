@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Favicon Generator</title>
+</head>
+<body>
+    <canvas id="canvas" width="32" height="32"></canvas>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Draw coconut favicon
+        // Background
+        ctx.fillStyle = '#8B4513';
+        ctx.beginPath();
+        ctx.ellipse(16, 18, 12, 10, 0, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        // Coconut meat
+        ctx.fillStyle = '#F5F5DC';
+        ctx.beginPath();
+        ctx.ellipse(16, 18, 9, 7, 0, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        // Coconut water
+        ctx.fillStyle = '#E6F3FF';
+        ctx.beginPath();
+        ctx.ellipse(16, 19, 6, 4, 0, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        // Eyes
+        ctx.fillStyle = '#654321';
+        ctx.beginPath();
+        ctx.arc(12, 14, 1.5, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(20, 14, 1.5, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        // Mouth
+        ctx.fillStyle = '#654321';
+        ctx.beginPath();
+        ctx.ellipse(16, 16, 1, 2, 0, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        // Palm frond
+        ctx.fillStyle = '#228B22';
+        ctx.beginPath();
+        ctx.moveTo(16, 8);
+        ctx.quadraticCurveTo(12, 4, 8, 6);
+        ctx.quadraticCurveTo(12, 8, 16, 8);
+        ctx.quadraticCurveTo(20, 4, 24, 6);
+        ctx.quadraticCurveTo(20, 8, 16, 8);
+        ctx.fill();
+        
+        // Convert to blob and download
+        canvas.toBlob(function(blob) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'favicon.png';
+            a.click();
+        });
+    </script>
+</body>
+</html>

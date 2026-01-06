@@ -1,3 +1,20 @@
+// ===== CONFIGURATION FROM CONFIG FILE =====
+function getConfig() {
+    return window.CONFIG || {
+        PAYMENT: { 
+            UPI_ID: window.EXTERNAL_APIS?.UPI_ID || "6302564464@pthdfc", 
+            MERCHANT_NAME: window.EXTERNAL_APIS?.MERCHANT_NAME || "Nagula Shiva Sai" 
+        },
+        SHOP: { 
+            LATITUDE: window.EXTERNAL_APIS?.SHOP_LATITUDE || 18.64110, 
+            LONGITUDE: window.EXTERNAL_APIS?.SHOP_LONGITUDE || 78.87335, 
+            ADDRESS: window.EXTERNAL_APIS?.SHOP_ADDRESS || "JVRF+996 Kallu manduva kodimial, Sandralapally X Rd, Sandralapally, Telangana 505501" 
+        },
+        PRICES: { eetha: 60, thati: 75, neera: 90 },
+        INVENTORY: { eetha: 50, thati: 50, neera: 50 }
+    };
+}
+
 // ===== CONFIGURATION =====
 async function getPrices() {
     try {
@@ -18,9 +35,9 @@ async function getPrices() {
         console.log('Using default prices - Firestore not available');
     }
     
-    // Fallback to default prices
-    const defaultPrices = {eetha: 60, thati: 75, neera: 90};
-    return defaultPrices;
+    // Fallback to config file or default prices
+    const config = getConfig();
+    return config.PRICES;
 }
 
 async function updatePrices(newPrices) {
@@ -56,9 +73,9 @@ async function getInventory() {
         console.log('Using default inventory - Firestore not available');
     }
     
-    // Fallback to default inventory
-    const defaultInventory = {eetha: 50, thati: 50, neera: 50};
-    return defaultInventory;
+    // Fallback to config file or default inventory
+    const config = getConfig();
+    return config.INVENTORY;
 }
 
 async function updateInventory(type, quantity) {
@@ -86,15 +103,25 @@ async function checkAvailability(type, quantity) {
     }
 }
 
-// ===== UPI PAYMENT CONFIGURATION =====
-const UPI_ID = "6302564464@pthdfc"; // CHANGE TO YOUR ACTUAL UPI ID
-const MERCHANT_NAME = "Nagula Shiva Sai"; // CHANGE TO YOUR SHOP NAME
+// ===== UPI PAYMENT CONFIGURATION FROM CONFIG =====
+const getPaymentConfig = () => {
+    const config = getConfig();
+    return {
+        UPI_ID: config.PAYMENT.UPI_ID,
+        MERCHANT_NAME: config.PAYMENT.MERCHANT_NAME
+    };
+};
 
-// ===== FIXED SHOP LOCATION (ACCURATE COORDINATES FOR SANDRALAPALLY) =====
-const shopLat = 18.64110; // Correct latitude for Sandralapally
-const shopLng = 78.87335; // Correct longitude for Sandralapally
-const shopAddress = "JVRF+996 Kallu manduva kodimial, Sandralapally X Rd, Sandralapally, Telangana 505501";
-const shopGoogleMapsUrl = `https://www.google.com/maps?q=${shopLat},${shopLng}`;
+// ===== SHOP LOCATION FROM CONFIG =====
+const getShopConfig = () => {
+    const config = getConfig();
+    return {
+        lat: config.SHOP.LATITUDE,
+        lng: config.SHOP.LONGITUDE,
+        address: config.SHOP.ADDRESS,
+        googleMapsUrl: `https://www.google.com/maps?q=${config.SHOP.LATITUDE},${config.SHOP.LONGITUDE}`
+    };
+};
 
 // ===== GLOBAL VARIABLES =====
 let map;
@@ -276,8 +303,9 @@ function getCurrentLocation() {
 
 // ===== REVERSE GEOCODING - CONVERT COORDINATES TO ADDRESS =====
 function reverseGeocode(lat, lng) {
-    // Use Nominatim (OpenStreetMap's free reverse geocoding service)
-    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
+    // Use Nominatim from config
+    const nominatimUrl = window.EXTERNAL_APIS?.NOMINATIM_URL || 'https://nominatim.openstreetmap.org';
+    const url = `${nominatimUrl}/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
     
     fetch(url)
         .then(response => response.json())
@@ -328,8 +356,9 @@ function searchAddress() {
     // Store the original address to prevent overwriting
     const originalAddress = address;
     
-    // Use Nominatim to convert address to coordinates
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`;
+    // Use Nominatim from config to convert address to coordinates
+    const nominatimUrl = window.EXTERNAL_APIS?.NOMINATIM_URL || 'https://nominatim.openstreetmap.org';
+    const url = `${nominatimUrl}/search?format=json&q=${encodeURIComponent(address)}&limit=1`;
     
     fetch(url)
         .then(response => response.json())
@@ -459,25 +488,29 @@ function initGoogleMap() {
 function initMap() {
     if (!customerLat || !customerLng) return;
     
+    // Get shop location from config
+    const shopConfig = getShopConfig();
+    
     // Clear existing map if it exists
     if (map) {
         map.remove();
     }
     
     // Create map centered between shop and customer location
-    const centerLat = (shopLat + customerLat) / 2;
-    const centerLng = (shopLng + customerLng) / 2;
+    const centerLat = (shopConfig.lat + customerLat) / 2;
+    const centerLng = (shopConfig.lng + customerLng) / 2;
     
     map = L.map('map').setView([centerLat, centerLng], 13);
     
-    // Add OpenStreetMap tiles
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    // Add OpenStreetMap tiles from config
+    const tilesUrl = window.EXTERNAL_APIS?.OPENSTREETMAP_TILES || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    L.tileLayer(tilesUrl, {
         attribution: '© OpenStreetMap contributors',
         maxZoom: 19
     }).addTo(map);
     
     // Add shop marker (red)
-    const shopMarker = L.marker([shopLat, shopLng], {
+    const shopMarker = L.marker([shopConfig.lat, shopConfig.lng], {
         icon: L.icon({
             iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
             shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
@@ -512,8 +545,9 @@ function initMap() {
 
 // ===== ADDRESS GEOCODING (FREE USING NOMINATIM) =====
 function updateAddressFromCoords(lat, lng) {
-    // Use Nominatim (OpenStreetMap's free geocoding service)
-    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
+    // Use Nominatim from config
+    const nominatimUrl = window.EXTERNAL_APIS?.NOMINATIM_URL || 'https://nominatim.openstreetmap.org';
+    const url = `${nominatimUrl}/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
     
     fetch(url)
         .then(response => response.json())
@@ -556,8 +590,11 @@ function calculateDeliveryCharge() {
         return;
     }
     
+    // Get shop location from config
+    const shopConfig = getShopConfig();
+    
     // Calculate accurate distance using fixed shop coordinates
-    const distance = calculateDistance(shopLat, shopLng, customerLat, customerLng);
+    const distance = calculateDistance(shopConfig.lat, shopConfig.lng, customerLat, customerLng);
     
     // Delivery charge: ₹30 for first 3km, ₹10 per additional km
     if (distance <= 3) {
@@ -723,6 +760,7 @@ function tryIOSUpiApps(upiUrls, index) {
 
 // ===== GENERATE UPI PAYMENT URL =====
 function generateUpiUrl(amount, customerName) {
+    const paymentConfig = getPaymentConfig();
     const transactionNote = `Toddy Order - ${customerName}`;
     
     // Detect iOS
@@ -731,15 +769,15 @@ function generateUpiUrl(amount, customerName) {
     if (isIOS) {
         // For iOS, try multiple UPI schemes
         const upiSchemes = [
-            `gpay://upi/pay?pa=${UPI_ID}&pn=${encodeURIComponent(MERCHANT_NAME)}&am=${amount}&cu=INR&tn=${encodeURIComponent(transactionNote)}`,
-            `phonepe://pay?pa=${UPI_ID}&pn=${encodeURIComponent(MERCHANT_NAME)}&am=${amount}&cu=INR&tn=${encodeURIComponent(transactionNote)}`,
-            `paytmmp://pay?pa=${UPI_ID}&pn=${encodeURIComponent(MERCHANT_NAME)}&am=${amount}&cu=INR&tn=${encodeURIComponent(transactionNote)}`,
-            `upi://pay?pa=${UPI_ID}&pn=${encodeURIComponent(MERCHANT_NAME)}&am=${amount}&cu=INR&tn=${encodeURIComponent(transactionNote)}`
+            `gpay://upi/pay?pa=${paymentConfig.UPI_ID}&pn=${encodeURIComponent(paymentConfig.MERCHANT_NAME)}&am=${amount}&cu=INR&tn=${encodeURIComponent(transactionNote)}`,
+            `phonepe://pay?pa=${paymentConfig.UPI_ID}&pn=${encodeURIComponent(paymentConfig.MERCHANT_NAME)}&am=${amount}&cu=INR&tn=${encodeURIComponent(transactionNote)}`,
+            `paytmmp://pay?pa=${paymentConfig.UPI_ID}&pn=${encodeURIComponent(paymentConfig.MERCHANT_NAME)}&am=${amount}&cu=INR&tn=${encodeURIComponent(transactionNote)}`,
+            `upi://pay?pa=${paymentConfig.UPI_ID}&pn=${encodeURIComponent(paymentConfig.MERCHANT_NAME)}&am=${amount}&cu=INR&tn=${encodeURIComponent(transactionNote)}`
         ];
         return upiSchemes;
     } else {
         // For Android, use standard UPI intent
-        const upiUrl = `upi://pay?pa=${UPI_ID}&pn=${encodeURIComponent(MERCHANT_NAME)}&am=${amount}&cu=INR&tn=${encodeURIComponent(transactionNote)}`;
+        const upiUrl = `upi://pay?pa=${paymentConfig.UPI_ID}&pn=${encodeURIComponent(paymentConfig.MERCHANT_NAME)}&am=${amount}&cu=INR&tn=${encodeURIComponent(transactionNote)}`;
         return upiUrl;
     }
 }
@@ -840,8 +878,9 @@ async function createPendingOrder() {
         
         const orderId = Date.now().toString();
         
-        // Get current prices from Firebase
+        // Get current prices and shop config
         const currentPrices = await getPrices();
+        const shopConfig = getShopConfig();
         
         // Create order data with accurate location info
         const orderData = {
@@ -859,14 +898,14 @@ async function createPendingOrder() {
             deliveryType: deliveryType,
             address: deliveryType === 'delivery' ? address : 'Self Pickup',
             coordinates: (deliveryType === 'delivery' && customerLat && customerLng) ? `${customerLat},${customerLng}` : null,
-            mapsLink: (deliveryType === 'delivery' && customerLat && customerLng) ? `https://www.google.com/maps/dir/${shopLat},${shopLng}/${customerLat},${customerLng}` : null,
+            mapsLink: (deliveryType === 'delivery' && customerLat && customerLng) ? `https://www.google.com/maps/dir/${shopConfig.lat},${shopConfig.lng}/${customerLat},${customerLng}` : null,
             deliveryCharge: deliveryCharge,
-            distance: (deliveryType === 'delivery' && customerLat && customerLng) ? calculateDistance(shopLat, shopLng, customerLat, customerLng).toFixed(1) : null,
+            distance: (deliveryType === 'delivery' && customerLat && customerLng) ? calculateDistance(shopConfig.lat, shopConfig.lng, customerLat, customerLng).toFixed(1) : null,
             shopLocation: {
-                lat: shopLat,
-                lng: shopLng,
-                address: shopAddress,
-                googleMapsUrl: shopGoogleMapsUrl
+                lat: shopConfig.lat,
+                lng: shopConfig.lng,
+                address: shopConfig.address,
+                googleMapsUrl: shopConfig.googleMapsUrl
             }
         };
         
